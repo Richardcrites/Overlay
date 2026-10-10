@@ -87,41 +87,58 @@
 
   <dialog id="exportDlg">
     <form method="dialog" id="exportForm">
-      <h2>Export overlay for OBS</h2>
-      <p class="muted">Creates one self-contained <code>.html</code> file with every alert, your dogs and sounds baked in.</p>
-      <label>Twitch channel name
-        <input id="exChannel" placeholder="yourchannel" autocomplete="off">
-      </label>
-      <p class="muted small">Subs, resubs, gift subs, cheers and raids come straight from your chat. No login needed.</p>
-      <details id="followDetails">
-        <summary>Follow alerts (optional, needs a Twitch token)</summary>
-        <p class="muted small">Twitch only shares follows with a token that has the <code>moderator:read:followers</code> scope. See the README for a 2-minute setup.</p>
-        <label>Twitch app Client ID <input id="exClientId" autocomplete="off"></label>
-        <button type="button" id="btnTwitchLogin">Connect with Twitch</button>
-        <label>Access token <input id="exToken" type="password" autocomplete="off" placeholder="paste or use Connect"></label>
-        <p id="tokenStatus" class="small"></p>
-      </details>
-      <div class="grid2">
-        <label>Master volume <input id="exVolume" type="range" min="0" max="1" step="0.05"></label>
-        <label>Gap between alerts (s) <input id="exGap" type="number" min="0" step="0.5"></label>
+      <h2>Put your alerts on stream</h2>
+      <div class="extabs" role="tablist">
+        <button type="button" data-ex="se" class="active">StreamElements <span class="pill">Easiest</span></button>
+        <button type="button" data-ex="obs">OBS file</button>
       </div>
-      <label class="check"><input type="checkbox" id="exChatTest"> Let me &amp; mods type <code>!testalert sub</code> (or follow, raid, all...) in chat</label>
-      <label class="check"><input type="checkbox" id="exTestOnLoad"> Play every alert once when OBS loads the source</label>
-      <p class="warn small">The exported file contains your token if you entered one. Don't share it.</p>
-      <div class="row end">
-        <button value="cancel">Close</button>
+
+      <div data-expane="se">
+        <p class="muted small">StreamElements is already connected to your Twitch, so <b>follows, subs, gift subs, cheers and raids</b> all work with no extra setup.</p>
+        <button type="button" id="btnCopySE" class="primary big">&#x1F4CB; Copy alert code</button>
+        <p id="copyStatus" class="small"></p>
+        <p class="small"><b>First time only:</b></p>
+        <ol class="steps small">
+          <li>Open <a href="https://streamelements.com/dashboard/overlays" target="_blank" rel="noopener">StreamElements &rarr; My overlays</a> and open your overlay (or click <b>New overlay</b>, 1920&times;1080).</li>
+          <li>Click <b>+</b> &rarr; <b>Static / Custom</b> &rarr; <b>Custom widget</b>.</li>
+          <li>On the left, click <b>Open editor</b> &rarr; <b>JS</b> tab &rarr; select everything (Ctrl+A) &rarr; <b>paste</b> (Ctrl+V) &rarr; <b>Done</b>.</li>
+          <li>Under <b>Position, size &amp; style</b>, set the widget to <b>1920 &times; 1080</b> at <b>0, 0</b>. Click <b>Save</b>.</li>
+          <li>If that overlay isn't in OBS yet, copy its link (&#x1F517; at the top) into a <b>Browser</b> source.</li>
+        </ol>
+        <p class="small muted"><b>Test:</b> click <b>Emulate</b> in the StreamElements editor, or type <code>!testalert all</code> in your chat.<br>
+        <b>Changed a design later?</b> Copy again and paste over the JS tab. Nothing changes in OBS.</p>
+      </div>
+
+      <div data-expane="obs" hidden>
+        <p class="muted small">Creates one <code>.html</code> file to add to OBS as a <b>Browser</b> source with <b>Local file</b> ticked (1920&times;1080).</p>
+        <label>Twitch channel name
+          <input id="exChannel" placeholder="yourchannel" autocomplete="off">
+        </label>
+        <p class="muted small">Subs, resubs, gift subs, cheers and raids come straight from your chat.</p>
+        <details id="followDetails">
+          <summary>Follow alerts (optional, needs a Twitch token)</summary>
+          <p class="muted small">Twitch only shares follows with a token that has the <code>moderator:read:followers</code> scope. See the README. (StreamElements export doesn't need this.)</p>
+          <label>Twitch app Client ID <input id="exClientId" autocomplete="off"></label>
+          <button type="button" id="btnTwitchLogin">Connect with Twitch</button>
+          <label>Access token <input id="exToken" type="password" autocomplete="off" placeholder="paste or use Connect"></label>
+          <p id="tokenStatus" class="small"></p>
+        </details>
+        <label class="check"><input type="checkbox" id="exTestOnLoad"> Play every alert once when OBS loads the source</label>
+        <p class="warn small">The file contains your token if you entered one. Don't share it.</p>
         <button type="button" id="btnDownloadOverlay" class="primary">Download overlay.html</button>
       </div>
+
       <details>
-        <summary>How do I add it to OBS?</summary>
-        <ol class="small">
-          <li>In OBS, add a <b>Browser</b> source.</li>
-          <li>Tick <b>Local file</b> and pick the downloaded <code>.html</code>.</li>
-          <li>Set width <b>1920</b>, height <b>1080</b>.</li>
-          <li>Tick <b>Control audio via OBS</b> so the alert sounds get their own mixer slider.</li>
-          <li>Type <code>!testalert all</code> in your chat to try it.</li>
-        </ol>
+        <summary>Options</summary>
+        <div class="grid2">
+          <label>Master volume <input id="exVolume" type="range" min="0" max="1" step="0.05"></label>
+          <label>Gap between alerts (s) <input id="exGap" type="number" min="0" step="0.5"></label>
+        </div>
+        <label class="check"><input type="checkbox" id="exChatTest"> Let me &amp; mods type <code>!testalert sub</code> (or follow, raid, all...) in chat</label>
       </details>
+      <div class="row end">
+        <button value="cancel">Close</button>
+      </div>
     </form>
   </dialog>
 

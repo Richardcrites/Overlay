@@ -26,48 +26,56 @@ A small After Effects-style editor for building **animated Twitch alerts** that 
 
 ## Quick start
 
-1. **Open `index.html`** in Chrome or Edge (double-click it). Nothing to install.
+1. **Open the editor**: double-click `index.html`, or use your GitHub Pages link. Nothing to install.
 2. Under **Crew**, upload a photo of each dog and type their names.
    Tip: square, close-up photos of their faces look best in the round frames.
 3. Click through the alert tabs at the top and press **Space** to play each one. Change whatever you like.
-4. Click **Export overlay**, type your Twitch channel name, then **Download overlay.html**.
-5. In **OBS**: add a **Browser** source → tick **Local file** → pick `quantum-paws-overlay.html` →
-   size **1920 × 1080** → tick **Control audio via OBS**.
-6. Type `!testalert all` in your Twitch chat to see every alert (works for you and your mods).
-   You can also use `!testalert sub`, `!testalert raid`, etc.
+4. Click **Export overlay** and pick one of the two ways below.
 
 Your work saves automatically in the browser. Use **Save** to download a backup `.json`, and **Open** to load one.
 
-> After changing a design, export again and replace the old file. In OBS, right-click the source → **Refresh**.
+## Way 1: StreamElements (easiest)
 
-## How alerts reach the overlay
+StreamElements is already connected to your Twitch, so **follows, subs, resubs, gift subs, cheers and raids** all work.
+You don't need tokens or a channel name.
 
-| Alert | Source | Setup needed |
-| --- | --- | --- |
-| Sub, Resub, Gift Sub, Gift Bomb, Cheer, Raid | Read from your Twitch chat, anonymously | Just your channel name |
-| Follow | Twitch EventSub | A Twitch token (below) |
+1. In the export window, click **Copy alert code**.
+2. Go to [StreamElements → My overlays](https://streamelements.com/dashboard/overlays). Open your overlay, or create a new one at 1920×1080.
+3. Click **+** → **Static / Custom** → **Custom widget**.
+4. On the left, click **Open editor** → **JS** tab → select everything (Ctrl+A) → paste (Ctrl+V) → **Done**.
+5. Under **Position, size & style**, set the widget to **1920 × 1080** at **0, 0**. Click **Save**.
+6. If that overlay isn't in OBS yet, copy its link (🔗 at the top) into an OBS **Browser** source.
 
-Alerts queue up and play one at a time, with a short gap between them (change it in the export window).
-When a gift bomb arrives, the overlay plays one "Gift Bomb" alert instead of one alert per gifted sub.
+To test, click **Emulate** in the StreamElements editor, or type `!testalert all` in your chat.
 
-### Turning on follow alerts (optional, about 5 minutes)
+**Updating later:** click **Copy alert code** again and paste it over the JS tab. Your OBS setup doesn't change.
+
+When a gift bomb arrives, you get one "Gift Bomb" alert instead of one alert per gifted sub.
+
+## Way 2: OBS file (no StreamElements)
+
+1. In the export window, open the **OBS file** tab. Type your Twitch channel name and click **Download overlay.html**.
+2. In **OBS**: add a **Browser** source → tick **Local file** → pick `quantum-paws-overlay.html` →
+   size **1920 × 1080** → tick **Control audio via OBS**.
+3. Type `!testalert all` in your Twitch chat to see every alert (works for you and your mods).
+
+After changing a design, export again and replace the old file. In OBS, right-click the source → **Refresh**.
+
+In this mode, subs, gifts, cheers and raids are read from your Twitch chat anonymously.
+Follow alerts need a Twitch token. Set one up as below, or just use Way 1.
+
+### Turning on follow alerts in an OBS file (optional, about 5 minutes)
 
 Twitch only shares follower events with a logged-in token that has the `moderator:read:followers` scope.
 
 1. Go to <https://dev.twitch.tv/console/apps> → **Register Your Application**.
    - Name: anything, for example `quantum-paws-alerts`
-   - OAuth Redirect URL: `http://localhost:8000/`
+   - OAuth Redirect URL: the exact address you open the editor at, for example `https://richardcrites.github.io/overlay/`
+     (or `http://localhost:8000/` if you run `python3 -m http.server 8000` in this folder)
    - Category: Broadcaster Suite, Client Type: Public
 2. Copy the **Client ID**.
-3. Run the editor from a local web server. Twitch login doesn't work from a double-clicked file.
-   In this folder, run:
-   ```
-   python3 -m http.server 8000
-   ```
-   Then open **http://localhost:8000/** (exactly that address).
-   Your existing designs won't be there, because the browser keeps a separate copy for each address.
-   Use **Save** at the old address, then **Open** at the new one.
-4. Click **Export overlay** → **Follow alerts** → paste the Client ID → **Connect with Twitch**.
+3. Open the editor at that exact address. Twitch login doesn't work from a double-clicked file.
+4. Click **Export overlay** → **OBS file** → **Follow alerts** → paste the Client ID → **Connect with Twitch**.
 5. Download the overlay again.
 
 Tokens expire after a while. If follow alerts stop working, connect again and re-export.

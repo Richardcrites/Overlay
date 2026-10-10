@@ -670,7 +670,8 @@ function OverlayRuntime() {
 
   // ---------------------------------------------------------------- Twitch chat (subs, gifts, cheers, raids)
   function tierName(plan) {
-    return plan === 'Prime' ? 'Prime' : plan === '2000' ? 'Tier 2' : plan === '3000' ? 'Tier 3' : 'Tier 1';
+    plan = String(plan || '');
+    return plan.toLowerCase() === 'prime' ? 'Prime' : plan === '2000' ? 'Tier 2' : plan === '3000' ? 'Tier 3' : 'Tier 1';
   }
 
   function parseIrc(line) {
@@ -821,6 +822,57 @@ function OverlayRuntime() {
       .catch((err) => log('Follow alerts disabled: ' + err.message, true));
   }
 
+  // ---------------------------------------------------------------- StreamElements custom widget events
+  // StreamElements handles the Twitch login and sends every event to the widget, follows included.
+  function StreamElementsEvents(onEvent, opts) {
+    opts = opts || {};
+    window.addEventListener('onEventReceived', (obj) => {
+      const d = (obj && obj.detail) || {};
+      const ev = d.event || {};
+      const L = d.listener;
+      if (L === 'follower-latest') onEvent({ type: 'follow', user: ev.name });
+      else if (L === 'subscriber-latest') {
+        if (ev.isCommunityGift) return; // the individual subs of a gift bomb
+        const tier = tierName(ev.tier);
+        if (ev.bulkGifted) onEvent({ type: 'giftbomb', user: ev.sender || ev.name || 'An anonymous pilot', count: String(ev.amount || 1), tier });
+        else if (ev.gifted) onEvent({ type: 'giftsub', user: ev.sender || 'An anonymous pilot', recipient: ev.name, tier });
+        else if ((parseInt(ev.amount, 10) || 1) > 1) onEvent({ type: 'resub', user: ev.name, months: String(ev.amount), tier, message: ev.message || '' });
+        else onEvent({ type: 'sub', user: ev.name, tier });
+      } else if (L === 'cheer-latest') onEvent({ type: 'cheer', user: ev.name, bits: String(ev.amount), message: ev.message || '' });
+      else if (L === 'raid-latest') onEvent({ type: 'raid', user: ev.name, viewers: String(ev.amount) });
+      else if (L === 'message' && opts.chatTest && ev.data) {
+        const text = ev.data.text || '';
+        const badges = (ev.data.tags && ev.data.tags.badges) || '';
+        if (/^!testalert\b/i.test(text) && /(broadcaster|moderator)\//.test(badges) && opts.onTest) opts.onTest((text.split(/\s+/)[1] || 'follow').toLowerCase());
+      }
+    });
+  }
+
+  // Builds the overlay page itself, so the whole overlay can be one pasted script.
+  function mountStage(fontCss) {
+    let canvas = document.getElementById('stage');
+    if (canvas) return canvas;
+    const de = document.documentElement;
+    de.style.cssText = 'margin:0;padding:0;background:transparent;overflow:hidden;width:100%;height:100%';
+    document.body.innerHTML = '';
+    document.body.style.cssText = 'margin:0;padding:0;background:transparent;overflow:hidden;width:100%;height:100%';
+    if (fontCss) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = fontCss;
+      document.head.appendChild(link);
+    }
+    canvas = document.createElement('canvas');
+    canvas.id = 'stage';
+    canvas.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;display:block;object-fit:contain';
+    const status = document.createElement('div');
+    status.id = 'status';
+    status.style.cssText = 'position:fixed;left:16px;bottom:12px;font:600 20px Rajdhani,sans-serif;text-shadow:0 0 6px #000,0 0 2px #000;transition:opacity .8s;opacity:0';
+    document.body.appendChild(canvas);
+    document.body.appendChild(status);
+    return canvas;
+  }
+
   // ---------------------------------------------------------------- image loading
   function loadImages(assets, cache) {
     cache = cache || {};
@@ -849,7 +901,7 @@ function OverlayRuntime() {
   async function startOverlay(project, config) {
     config = config || {};
     const W = project.width || 1920, H = project.height || 1080;
-    const canvas = document.getElementById('stage');
+    const canvas = mountStage(config.fontCss);
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
     const status = document.getElementById('status');
@@ -868,7 +920,12 @@ function OverlayRuntime() {
     const assetNames = {};
     for (const id in project.assets) assetNames[id] = project.assets[id].name;
     await ready;
-    try { await Promise.all(usedFonts(project).map((f) => document.fonts.load('700 40px "' + f + '"'))); } catch (e) { /* offline: fall back */ }
+    try {
+      await Promise.race([
+        Promise.all(usedFonts(project).map((f) => document.fonts.load('700 40px "' + f + '"'))),
+        new Promise((r) => setTimeout(r, 4000)),
+      ]);
+    } catch (e) { /* offline: fall back to system fonts */ }
 
     const queue = [];
     let current = null, cooldownUntil = 0;
@@ -905,7 +962,10 @@ function OverlayRuntime() {
     }
     requestAnimationFrame(frame);
 
-    if (config.channel) TwitchChat(config.channel, enqueue, { log, chatTest: config.chatTest, onTest: test });
+    if (config.source === 'streamelements') {
+      StreamElementsEvents(enqueue, { chatTest: config.chatTest, onTest: test });
+      log('Quantum Paws alerts ready');
+    } else if (config.channel) TwitchChat(config.channel, enqueue, { log, chatTest: config.chatTest, onTest: test });
     else log('No Twitch channel set - re-export the overlay with your channel name', true);
     if (config.token) TwitchFollows(config.token, enqueue, log);
     if (config.testOnLoad) setTimeout(() => test('all'), 800);

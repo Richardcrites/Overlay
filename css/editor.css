@@ -168,6 +168,14 @@ dialog label input:not([type=checkbox]) { display: block; width: 100%; margin-to
 dialog label.check { display: flex; gap: 6px; align-items: center; }
 dialog details { margin: 10px 0; border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; }
 dialog summary { cursor: pointer; color: var(--accent); }
+.extabs { display: flex; gap: 4px; margin: 12px 0 10px; border-bottom: 1px solid var(--line); }
+.extabs button { border-radius: 4px 4px 0 0; border-bottom: none; }
+.extabs button.active { border-color: var(--accent); color: var(--accent); background: var(--panel-2); }
+.pill { font-size: 11px; background: var(--accent-2); color: #1a1200; border-radius: 8px; padding: 0 6px; margin-left: 4px; font-weight: 700; }
+button.big { width: 100%; padding: 10px; font-size: 16px; }
+.steps { padding-left: 20px; line-height: 1.55; }
+.steps li { margin-bottom: 3px; }
+dialog a { color: var(--accent); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 #toast {
   position: fixed; left: 50%; bottom: 300px; transform: translateX(-50%); background: #0f2333; border: 1px solid var(--accent);
