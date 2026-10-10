@@ -43,12 +43,23 @@ You don't need tokens or a channel name.
 2. Go to [StreamElements → My overlays](https://streamelements.com/dashboard/overlays). Open your overlay, or create a new one at 1920×1080.
 3. Click **+** → **Static / Custom** → **Custom widget**.
 4. On the left, click **Open editor** → **JS** tab → select everything (Ctrl+A) → paste (Ctrl+V) → **Done**.
-5. Under **Position, size & style**, set the widget to **1920 × 1080** at **0, 0**. Click **Save**.
-6. If that overlay isn't in OBS yet, copy its link (🔗 at the top) into an OBS **Browser** source.
+5. Under **Position, size & style**, set the widget to **1920 × 1080** at **0, 0**.
+6. Click the overlay's **Save** button (top right). Clicking **Done** in the code editor is not enough on its own.
+7. If that overlay isn't in OBS yet, copy its link (🔗 at the top) into an OBS **Browser** source.
 
 To test, click **Emulate** in the StreamElements editor, or type `!testalert all` in your chat.
 
 **Updating later:** click **Copy alert code** again and paste it over the JS tab. Your OBS setup doesn't change.
+
+### If StreamElements won't save the code
+
+Use the tiny version. It's under **Code won't save?** in the export window. The code you paste is about 500 characters, and your designs load from your GitHub Pages site:
+
+1. Click **Download alerts.json**.
+2. On GitHub: your repo → **Add file** → **Upload files** → drop in `alerts.json`. Put it in the same folder as `index.html`, on the branch your Pages site uses. Click **Commit changes**.
+3. Enter your Pages address, click **Copy tiny code**, paste it into the StreamElements JS tab, then click **Done** and **Save**.
+
+To update a design after that, just upload a new `alerts.json`. It can take up to 10 minutes to show up. Then refresh the source in OBS.
 
 When a gift bomb arrives, you get one "Gift Bomb" alert instead of one alert per gifted sub.
 

@@ -945,39 +945,85 @@
   }
 
   // Dog photos only ever show at ~250px, so shrink them to keep the exported code small.
+  // Dog photos only ever show at ~250px, so shrink and re-encode them to keep the exported code small.
   async function compactImage(data, max) {
     try {
       const img = await loadImg(data);
-      const s = max / Math.max(img.naturalWidth, img.naturalHeight);
-      if (s >= 1) return data;
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
       const c = document.createElement('canvas');
-      c.width = Math.round(img.naturalWidth * s);
-      c.height = Math.round(img.naturalHeight * s);
+      c.width = Math.max(1, Math.round(img.naturalWidth * k));
+      c.height = Math.max(1, Math.round(img.naturalHeight * k));
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      return /^data:image\/(png|webp|gif)/.test(data) ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.88);
+      let out = c.toDataURL('image/webp', 0.8);
+      if (!out.startsWith('data:image/webp')) out = /^data:image\/(png|gif)/.test(data) ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.82);
+      return out.length < data.length ? out : data;
     } catch (e) {
       return data;
     }
   }
 
-  // The whole overlay as one self-contained script: engine + designs + settings.
-  async function buildPlayerScript(source) {
+  // Drops everything the player doesn't need: default values, hidden layers, editor-only fields.
+  function compactAlerts() {
+    const r = (v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v);
+    const out = {};
+    for (const id in P.alerts) {
+      const al = P.alerts[id];
+      if (!al.enabled) { out[id] = { enabled: false, duration: 0, layers: [] }; continue; }
+      const layers = al.layers.filter((l) => !l.hidden).map((l) => {
+        const defs = RT.makeLayer(l.type).props;
+        const props = {};
+        for (const k in l.props) if (l.props[k] !== defs[k] && !(l.keys[k] && l.keys[k].length)) props[k] = r(l.props[k]);
+        const keys = {};
+        for (const k in l.keys) {
+          if (!l.keys[k].length) continue;
+          keys[k] = l.keys[k].map((kf) => (kf.e && kf.e !== 'linear' ? { t: r(kf.t), v: r(kf.v), e: kf.e } : { t: r(kf.t), v: r(kf.v) }));
+        }
+        return { type: l.type, inPoint: r(l.inPoint), outPoint: r(l.outPoint), props, keys };
+      });
+      out[id] = { enabled: true, duration: al.duration, offset: al.offset, sound: al.sound, layers };
+    }
+    return out;
+  }
+
+  async function buildPayload(source) {
     const used = usedAssetIds();
     const assets = {};
     for (const id in P.assets) {
       if (!used.has(id)) continue;
       const a = P.assets[id];
-      assets[id] = a.type === 'image' && a.data ? Object.assign({}, a, { data: await compactImage(a.data, 480) }) : a;
+      assets[id] = a.type === 'image' && a.data ? { type: 'image', name: a.name, data: await compactImage(a.data, 320) } : { type: a.type, name: a.name, data: a.data };
     }
-    const project = { version: P.version, width: W, height: H, assets, alerts: P.alerts };
+    const project = { version: P.version, width: W, height: H, assets, alerts: compactAlerts() };
     const s = P.settings;
     const config = { source, volume: s.volume, gap: s.gap, chatTest: s.chatTest, fontCss: FONT_CSS, hideStatus: source === 'streamelements' };
     if (source === 'twitch') Object.assign(config, { channel: s.channel, token: s.token, testOnLoad: s.testOnLoad });
+    return { project, config };
+  }
+
+  // The whole overlay as one self-contained script: engine + designs + settings.
+  async function buildPlayerScript(source) {
+    const { project, config } = await buildPayload(source);
     const safe = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
     return '/* Quantum Paws alerts - made with Quantum Paws Alert Studio. Paste this whole thing into the JS tab. */\n' +
       '(function () {\n' +
       'const RT = (' + OverlayRuntime.toString() + ')();\n' +
       'RT.startOverlay(' + safe(project) + ', ' + safe(config) + ');\n' +
+      '})();\n';
+  }
+
+  // Tiny StreamElements code that loads the engine and alerts.json from the user's GitHub Pages site.
+  function buildLoader(base) {
+    base = base.replace(/\/?$/, '/');
+    return '/* Quantum Paws alerts loader. Designs live in alerts.json on your GitHub Pages site. */\n' +
+      '(function () {\n' +
+      '  var base = ' + JSON.stringify(base) + ', v = Date.now();\n' +
+      '  var s = document.createElement("script");\n' +
+      '  s.src = base + "js/runtime.js?v=" + v;\n' +
+      '  s.onload = function () {\n' +
+      '    fetch(base + "alerts.json?v=" + v).then(function (r) { return r.json(); })\n' +
+      '      .then(function (d) { OverlayRuntime().startOverlay(d.project, d.config); });\n' +
+      '  };\n' +
+      '  document.head.appendChild(s);\n' +
       '})();\n';
   }
 
@@ -1020,6 +1066,7 @@
     $('#exTestOnLoad').checked = !!s.testOnLoad;
     if (s.token) { $('#followDetails').open = true; validateToken(); }
     $('#copyStatus').textContent = '';
+    $('#exPages').value = s.pagesUrl || (/^https?:/.test(location.protocol) && !/localhost|127\.0\.0\.1/.test(location.host) ? location.origin + location.pathname.replace(/[^/]*$/, '') : '');
     showExportTab(s.token ? 'obs' : 'se');
     dlg.showModal();
   }
@@ -1062,6 +1109,26 @@
     toast('Overlay downloaded (' + Math.round(html.length / 1024) + ' KB). Add it to OBS as a Browser source.', 5000);
   });
   $('#exportForm').addEventListener('change', readExportForm);
+  function pagesBase() {
+    const v = $('#exPages').value.trim();
+    if (!/^https?:\/\//i.test(v)) { toast('Enter your GitHub Pages address first, like https://name.github.io/overlay/', 5000); return null; }
+    P.settings.pagesUrl = v;
+    scheduleSave();
+    return v;
+  }
+  $('#btnDownloadJson').addEventListener('click', async () => {
+    readExportForm();
+    const data = await buildPayload('streamelements');
+    download('alerts.json', JSON.stringify(data), 'application/json');
+    toast('alerts.json downloaded. Upload it to your GitHub repo next to index.html.', 5000);
+  });
+  $('#btnCopyLoader').addEventListener('click', async () => {
+    const base = pagesBase();
+    if (!base) return;
+    const ok = await copyText(buildLoader(base));
+    $('#loaderStatus').textContent = ok ? '\u2714 Copied. Paste it into the StreamElements JS tab (replace everything).' : 'Copy was blocked by the browser.';
+    $('#loaderStatus').style.color = ok ? '#5cffb0' : '#ff5a6a';
+  });
   function showExportTab(which) {
     for (const b of document.querySelectorAll('[data-ex]')) b.classList.toggle('active', b.dataset.ex === which);
     for (const p of document.querySelectorAll('[data-expane]')) p.hidden = p.dataset.expane !== which;
@@ -1076,8 +1143,9 @@
     const ok = await copyText(js);
     const kb = Math.round(js.length / 1024);
     if (ok) {
-      st.textContent = '\u2714 Copied (' + kb + ' KB). Now paste it into the StreamElements JS tab.';
-      st.style.color = '#5cffb0';
+      st.textContent = '\u2714 Copied (' + kb + ' KB). Now paste it into the StreamElements JS tab.' +
+        (kb > 150 ? ' This is on the big side. If StreamElements won\'t save it, use "Code won\'t save?" below.' : '');
+      st.style.color = kb > 150 ? '#ffc94a' : '#5cffb0';
     } else {
       download('quantum-paws-streamelements.js', js, 'text/javascript');
       st.textContent = 'Your browser blocked copying, so it was downloaded instead. Open the file, copy everything, and paste it into the JS tab.';

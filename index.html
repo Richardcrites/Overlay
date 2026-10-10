@@ -102,11 +102,23 @@
           <li>Open <a href="https://streamelements.com/dashboard/overlays" target="_blank" rel="noopener">StreamElements &rarr; My overlays</a> and open your overlay (or click <b>New overlay</b>, 1920&times;1080).</li>
           <li>Click <b>+</b> &rarr; <b>Static / Custom</b> &rarr; <b>Custom widget</b>.</li>
           <li>On the left, click <b>Open editor</b> &rarr; <b>JS</b> tab &rarr; select everything (Ctrl+A) &rarr; <b>paste</b> (Ctrl+V) &rarr; <b>Done</b>.</li>
-          <li>Under <b>Position, size &amp; style</b>, set the widget to <b>1920 &times; 1080</b> at <b>0, 0</b>. Click <b>Save</b>.</li>
+          <li>Under <b>Position, size &amp; style</b>, set the widget to <b>1920 &times; 1080</b> at <b>0, 0</b>.</li>
+          <li>Click the overlay's <b>Save</b> button (top right). Don't skip this: <b>Done</b> alone doesn't save.</li>
           <li>If that overlay isn't in OBS yet, copy its link (&#x1F517; at the top) into a <b>Browser</b> source.</li>
         </ol>
         <p class="small muted"><b>Test:</b> click <b>Emulate</b> in the StreamElements editor, or type <code>!testalert all</code> in your chat.<br>
         <b>Changed a design later?</b> Copy again and paste over the JS tab. Nothing changes in OBS.</p>
+        <details id="loaderDetails">
+          <summary>Code won't save in StreamElements?</summary>
+          <p class="small muted">Make sure you click <b>Done</b> in the code editor <b>and then</b> the overlay's <b>Save</b> button (top right). If it still won't save, the code is too big. Use this tiny version instead. Your designs load from your GitHub Pages site.</p>
+          <ol class="steps small">
+            <li><button type="button" id="btnDownloadJson">Download alerts.json</button></li>
+            <li>On GitHub, open your repo &rarr; <b>Add file</b> &rarr; <b>Upload files</b> &rarr; drop <code>alerts.json</code> in (same folder as <code>index.html</code>, on the branch your Pages site uses) &rarr; <b>Commit changes</b>.</li>
+            <li>Your Pages address: <input id="exPages" placeholder="https://yourname.github.io/overlay/" autocomplete="off" style="width:100%"></li>
+            <li><button type="button" id="btnCopyLoader">Copy tiny code</button> &rarr; paste it into the StreamElements <b>JS</b> tab &rarr; <b>Done</b> &rarr; <b>Save</b>. <span id="loaderStatus"></span></li>
+          </ol>
+          <p class="small muted">From then on, to update a design you only re-upload <code>alerts.json</code> to GitHub. It can take up to 10 minutes to show up. Then right-click the source in OBS &rarr; <b>Refresh</b>.</p>
+        </details>
       </div>
 
       <div data-expane="obs" hidden>
