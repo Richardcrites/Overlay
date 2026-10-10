@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quantum Paws Alert Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Bebas+Neue&family=Exo+2:ital,wght@0,400;0,600;0,700;0,900;1,600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Share+Tech+Mono&display=swap">
+  <link rel="stylesheet" href="css/editor.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand"><span class="paw">&#x1F43E;</span> QUANTUM PAWS <small>Alert Studio</small></div>
+    <nav id="alertTabs" aria-label="Alert type"></nav>
+    <div class="spacer"></div>
+    <button id="btnUndo" title="Undo (Ctrl+Z)">&#x21B6;</button>
+    <button id="btnRedo" title="Redo (Ctrl+Shift+Z)">&#x21B7;</button>
+    <button id="btnImport" title="Open a saved project file">Open</button>
+    <button id="btnSave" title="Download a backup of the whole project">Save</button>
+    <button id="btnExport" class="primary">Export overlay</button>
+    <input type="file" id="fileProject" accept=".json,application/json" hidden>
+  </header>
+
+  <main id="workspace">
+    <aside id="left" class="panel">
+      <section>
+        <h3>Crew <small>your dogs</small></h3>
+        <div id="crew"></div>
+      </section>
+      <section>
+        <h3>Media library</h3>
+        <div id="library"></div>
+        <div class="row">
+          <button id="btnAddImage">+ Image</button>
+          <button id="btnAddSound">+ Sound</button>
+        </div>
+        <input type="file" id="fileImage" accept="image/*" hidden>
+        <input type="file" id="fileSound" accept="audio/*" hidden>
+      </section>
+      <section>
+        <h3>Alert settings</h3>
+        <div id="alertSettings"></div>
+      </section>
+      <section>
+        <h3>Preview data</h3>
+        <div id="previewVars"></div>
+      </section>
+    </aside>
+
+    <section id="stage">
+      <div id="stageBar">
+        <span class="label">Add layer</span>
+        <button data-add="image">Dog / Image</button>
+        <button data-add="text">Text</button>
+        <button data-add="shape">Shape</button>
+        <button data-add="particles">Particles</button>
+        <div class="spacer"></div>
+        <label class="label" for="bgSelect">Background</label>
+        <select id="bgSelect">
+          <option value="space">Space</option>
+          <option value="game">Gameplay mock</option>
+          <option value="checker">Transparent</option>
+          <option value="green">Green</option>
+        </select>
+      </div>
+      <div id="canvasWrap"><canvas id="preview" width="1920" height="1080"></canvas></div>
+    </section>
+
+    <aside id="right" class="panel">
+      <div id="inspector"></div>
+    </aside>
+  </main>
+
+  <footer id="timeline">
+    <div id="transport">
+      <button id="btnStart" title="Go to start (Home)">&#x23EE;</button>
+      <button id="btnPlay" title="Play / pause (Space)">&#x25B6;</button>
+      <span id="timeDisplay">0.00s</span>
+      <label><input type="checkbox" id="chkLoop" checked> Loop</label>
+      <label><input type="checkbox" id="chkSound" checked> Sound</label>
+      <div class="spacer"></div>
+      <span class="hint">Drag layers on the canvas &middot; click &#x23F1; to animate a property &middot; drag &#x25C6; keyframes in time</span>
+    </div>
+    <div id="tlScroll"><div id="tlBody"></div></div>
+  </footer>
+
+  <dialog id="exportDlg">
+    <form method="dialog" id="exportForm">
+      <h2>Export overlay for OBS</h2>
+      <p class="muted">Creates one self-contained <code>.html</code> file with every alert, your dogs and sounds baked in.</p>
+      <label>Twitch channel name
+        <input id="exChannel" placeholder="yourchannel" autocomplete="off">
+      </label>
+      <p class="muted small">Subs, resubs, gift subs, cheers and raids come straight from your chat. No login needed.</p>
+      <details id="followDetails">
+        <summary>Follow alerts (optional, needs a Twitch token)</summary>
+        <p class="muted small">Twitch only shares follows with a token that has the <code>moderator:read:followers</code> scope. See the README for a 2-minute setup.</p>
+        <label>Twitch app Client ID <input id="exClientId" autocomplete="off"></label>
+        <button type="button" id="btnTwitchLogin">Connect with Twitch</button>
+        <label>Access token <input id="exToken" type="password" autocomplete="off" placeholder="paste or use Connect"></label>
+        <p id="tokenStatus" class="small"></p>
+      </details>
+      <div class="grid2">
+        <label>Master volume <input id="exVolume" type="range" min="0" max="1" step="0.05"></label>
+        <label>Gap between alerts (s) <input id="exGap" type="number" min="0" step="0.5"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="exChatTest"> Let me &amp; mods type <code>!testalert sub</code> (or follow, raid, all...) in chat</label>
+      <label class="check"><input type="checkbox" id="exTestOnLoad"> Play every alert once when OBS loads the source</label>
+      <p class="warn small">The exported file contains your token if you entered one. Don't share it.</p>
+      <div class="row end">
+        <button value="cancel">Close</button>
+        <button type="button" id="btnDownloadOverlay" class="primary">Download overlay.html</button>
+      </div>
+      <details>
+        <summary>How do I add it to OBS?</summary>
+        <ol class="small">
+          <li>In OBS, add a <b>Browser</b> source.</li>
+          <li>Tick <b>Local file</b> and pick the downloaded <code>.html</code>.</li>
+          <li>Set width <b>1920</b>, height <b>1080</b>.</li>
+          <li>Tick <b>Control audio via OBS</b> so the alert sounds get their own mixer slider.</li>
+          <li>Type <code>!testalert all</code> in your chat to try it.</li>
+        </ol>
+      </details>
+    </form>
+  </dialog>
+
+  <div id="toast"></div>
+
+  <script src="js/runtime.js"></script>
+  <script src="js/templates.js"></script>
+  <script src="js/editor.js"></script>
+</body>
+</html>
