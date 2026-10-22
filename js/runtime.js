@@ -916,17 +916,6 @@ function OverlayRuntime() {
       statusTimer = setTimeout(() => { status.style.opacity = '0'; }, isError ? 15000 : 6000);
     }
 
-    const { cache: images, ready } = loadImages(project.assets);
-    const assetNames = {};
-    for (const id in project.assets) assetNames[id] = project.assets[id].name;
-    await ready;
-    try {
-      await Promise.race([
-        Promise.all(usedFonts(project).map((f) => document.fonts.load('700 40px "' + f + '"'))),
-        new Promise((r) => setTimeout(r, 4000)),
-      ]);
-    } catch (e) { /* offline: fall back to system fonts */ }
-
     const queue = [];
     let current = null, cooldownUntil = 0;
 
@@ -941,6 +930,25 @@ function OverlayRuntime() {
       types.forEach((tp) => SAMPLE_VARS[tp] && enqueue(Object.assign({ type: tp }, SAMPLE_VARS[tp])));
     }
     window.testAlert = test;
+
+    // Listen right away: events that arrive while photos and fonts load wait in the queue.
+    if (config.source === 'streamelements') {
+      StreamElementsEvents(enqueue, { chatTest: config.chatTest, onTest: test });
+      log('Quantum Paws alerts ready');
+    } else if (config.channel) TwitchChat(config.channel, enqueue, { log, chatTest: config.chatTest, onTest: test });
+    else log('No Twitch channel set - re-export the overlay with your channel name', true);
+    if (config.token) TwitchFollows(config.token, enqueue, log);
+
+    const { cache: images, ready } = loadImages(project.assets);
+    const assetNames = {};
+    for (const id in project.assets) assetNames[id] = project.assets[id].name;
+    await ready;
+    try {
+      await Promise.race([
+        Promise.all(usedFonts(project).map((f) => document.fonts.load('700 40px "' + f + '"'))),
+        new Promise((r) => setTimeout(r, 4000)),
+      ]);
+    } catch (e) { /* offline: fall back to system fonts */ }
 
     function frame(now) {
       if (!current && queue.length && now >= cooldownUntil) {
@@ -962,12 +970,6 @@ function OverlayRuntime() {
     }
     requestAnimationFrame(frame);
 
-    if (config.source === 'streamelements') {
-      StreamElementsEvents(enqueue, { chatTest: config.chatTest, onTest: test });
-      log('Quantum Paws alerts ready');
-    } else if (config.channel) TwitchChat(config.channel, enqueue, { log, chatTest: config.chatTest, onTest: test });
-    else log('No Twitch channel set - re-export the overlay with your channel name', true);
-    if (config.token) TwitchFollows(config.token, enqueue, log);
     if (config.testOnLoad) setTimeout(() => test('all'), 800);
   }
 
