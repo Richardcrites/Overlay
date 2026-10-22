@@ -950,20 +950,26 @@ function OverlayRuntime() {
       ]);
     } catch (e) { /* offline: fall back to system fonts */ }
 
+    // When alerts pile up (a cheer train, a gift bomb), play them faster so nobody waits long.
+    const catchUp = config.catchUp !== false;
+    const rate = () => (catchUp && queue.length ? Math.min(2, 1 + 0.5 * queue.length) : 1);
+    let last = 0;
     function frame(now) {
+      const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+      last = now;
       if (!current && queue.length && now >= cooldownUntil) {
         const ev = queue.shift();
-        current = { ev, alert: project.alerts[ev.type], start: now };
+        current = { ev, alert: project.alerts[ev.type], t: 0 };
         playSound(current.alert.sound, project.assets, config.volume == null ? 0.8 : config.volume);
       }
       ctx.clearRect(0, 0, W, H);
       if (current) {
-        const t = (now - current.start) / 1000;
-        if (t >= current.alert.duration) {
+        current.t += dt * rate();
+        if (current.t >= current.alert.duration) {
           current = null;
-          cooldownUntil = now + (config.gap == null ? 1 : config.gap) * 1000;
+          cooldownUntil = now + (config.gap == null ? 1 : config.gap) * 1000 / rate();
         } else {
-          render(ctx, current.alert, t, { width: W, height: H, images, assetNames, vars: current.ev });
+          render(ctx, current.alert, current.t, { width: W, height: H, images, assetNames, vars: current.ev });
         }
       }
       requestAnimationFrame(frame);

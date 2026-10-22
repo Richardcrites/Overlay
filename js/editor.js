@@ -995,7 +995,7 @@
     }
     const project = { version: P.version, width: W, height: H, assets, alerts: compactAlerts() };
     const s = P.settings;
-    const config = { source, volume: s.volume, gap: s.gap, chatTest: s.chatTest, fontCss: FONT_CSS, hideStatus: source === 'streamelements' };
+    const config = { source, volume: s.volume, gap: s.gap, chatTest: s.chatTest, catchUp: s.catchUp !== false, fontCss: FONT_CSS, hideStatus: source === 'streamelements' };
     if (source === 'twitch') Object.assign(config, { channel: s.channel, token: s.token, testOnLoad: s.testOnLoad });
     return { project, config };
   }
@@ -1063,6 +1063,7 @@
     $('#exVolume').value = s.volume;
     $('#exGap').value = s.gap;
     $('#exChatTest').checked = !!s.chatTest;
+    $('#exCatchUp').checked = s.catchUp !== false;
     $('#exTestOnLoad').checked = !!s.testOnLoad;
     if (s.token) { $('#followDetails').open = true; validateToken(); }
     $('#copyStatus').textContent = '';
@@ -1078,6 +1079,7 @@
     s.volume = parseFloat($('#exVolume').value);
     s.gap = Math.max(0, parseFloat($('#exGap').value) || 0);
     s.chatTest = $('#exChatTest').checked;
+    s.catchUp = $('#exCatchUp').checked;
     s.testOnLoad = $('#exTestOnLoad').checked;
     scheduleSave();
   }
