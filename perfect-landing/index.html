@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perfect Landing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Orbitron:wght@600;800&display=block" rel="stylesheet">
+<!--
+  PERFECT LANDING — a self-playing Star Citizen Ironclad alert for OBS.
+
+  Add this file to OBS as a Browser source (1920 x 1080). It plays by itself.
+  See README.md in this folder for the Stream Deck / Streamer.bot setup.
+
+  Options go after the file name, for example  index.html?hold=8&volume=0.5
+    hold=6.5            seconds the alert stays up before the ship lifts off
+    volume=0.8          0 to 1
+    sound=0             no sound
+    caption=...         text in the HUD bar  (caption=0 hides it)
+    streamerbot=1       wait for a Streamer.bot WebSocket event instead of playing on load
+    host=127.0.0.1      Streamer.bot WebSocket server address
+    port=8080           Streamer.bot WebSocket server port
+    trigger=perfect-landing   word the Streamer.bot event must contain
+    loop=1              replay forever (for previewing)
+    bg=1                dark background (for previewing)
+-->
+<style>
+  :root {
+    --yellow-top: #fff200;
+    --yellow-bot: #ff9500;
+    --blue-top: #f4fbff;
+    --blue-mid: #8ed3ff;
+    --blue-bot: #0a9bff;
+    --hud: #6fe3ff;
+  }
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body.preview { background: radial-gradient(ellipse at 50% 70%, #23324a, #0a0f1a 70%); }
+
+  #stage {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1920px;
+    height: 1080px;
+    transform-origin: 50% 50%;
+    pointer-events: none;
+  }
+  #shake { position: absolute; inset: 0; }
+  #shake > * { position: absolute; }
+
+  /* ---------- ship ---------- */
+  #shadow {
+    left: 960px;
+    top: 545px;
+    width: 1000px;
+    height: 70px;
+    margin-left: -500px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0));
+    opacity: 0;
+  }
+  #ship {
+    left: 960px;
+    top: 20px;
+    width: 1180px;
+    margin-left: -590px;
+    opacity: 0;
+    will-change: transform;
+  }
+  #ship img {
+    display: block;
+    width: 100%;
+    filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .45));
+  }
+  .thruster {
+    position: absolute;
+    top: 64%;
+    width: 46px;
+    height: 230px;
+    margin-left: -23px;
+    transform-origin: 50% 0;
+    background: linear-gradient(180deg, #fff 0%, #ffe08a 12%, #ff7b1c 38%, rgba(255, 70, 20, .35) 70%, rgba(255, 60, 0, 0));
+    border-radius: 50% 50% 45% 45% / 20% 20% 80% 80%;
+    filter: blur(6px);
+    mix-blend-mode: screen;
+    opacity: 0;
+  }
+  .thruster.t1 { left: 52.1%; }
+  .thruster.t2 { left: 54.2%; }
+  .engine-glow {
+    position: absolute;
+    left: 53.2%;
+    top: 66%;
+    width: 360px;
+    height: 360px;
+    margin: -180px 0 0 -180px;
+    background: radial-gradient(closest-side, rgba(255, 190, 90, .9), rgba(255, 120, 30, .35) 45%, rgba(255, 90, 0, 0));
+    mix-blend-mode: screen;
+    opacity: 0;
+  }
+
+  /* ---------- touchdown effects ---------- */
+  #ring {
+    left: 960px;
+    top: 540px;
+    width: 900px;
+    height: 150px;
+    margin: -75px 0 0 -450px;
+    border-radius: 50%;
+    border: 7px solid rgba(160, 230, 255, .95);
+    box-shadow: 0 0 40px rgba(120, 210, 255, .9), inset 0 0 30px rgba(120, 210, 255, .6);
+    opacity: 0;
+  }
+  #flash {
+    left: 960px;
+    top: 520px;
+    width: 1400px;
+    height: 420px;
+    margin: -210px 0 0 -700px;
+    background: radial-gradient(closest-side, rgba(255, 255, 255, .85), rgba(190, 230, 255, .3) 45%, rgba(255, 255, 255, 0));
+    mix-blend-mode: screen;
+    opacity: 0;
+  }
+  .puff {
+    width: 220px;
+    height: 220px;
+    margin: -110px 0 0 -110px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(235, 238, 242, .95), rgba(210, 215, 222, .6) 55%, rgba(200, 205, 215, 0));
+    filter: blur(6px);
+    opacity: 0;
+  }
+
+  /* ---------- title ---------- */
+  #title {
+    left: 0;
+    top: 440px;
+    width: 1920px;
+    text-align: center;
+    transform: rotate(-2.5deg);
+    filter: drop-shadow(0 14px 0 rgba(0, 0, 0, .35)) drop-shadow(0 0 28px rgba(0, 0, 0, .35));
+  }
+  .word {
+    display: block;
+    font-family: 'Luckiest Guy', 'Impact', 'Arial Black', sans-serif;
+    line-height: .92;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+  }
+  .word.perfect { font-size: 285px; }
+  .word.landing { font-size: 318px; margin-top: -18px; }
+  .ch {
+    position: relative;
+    display: inline-block;
+    color: transparent;
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+  .ch::before,
+  .ch::after {
+    content: attr(data-ch);
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+  /* thick black outline behind the letter */
+  .ch::before {
+    color: #000;
+    -webkit-text-stroke: 44px #000;
+  }
+  /* gradient fill + moving shine on top */
+  .ch::after {
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    background-repeat: no-repeat;
+    background-size: 250% 100%, 100% 100%;
+    background-position: 105% 0, 0 0;
+  }
+  .perfect .ch::after {
+    background-image:
+      linear-gradient(105deg, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, .95) 50%, rgba(255, 255, 255, 0) 58%),
+      linear-gradient(180deg, var(--yellow-top) 18%, var(--yellow-bot) 88%);
+  }
+  .landing .ch::after {
+    background-image:
+      linear-gradient(105deg, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, .95) 50%, rgba(255, 255, 255, 0) 58%),
+      linear-gradient(180deg, var(--blue-top) 12%, var(--blue-mid) 48%, var(--blue-bot) 92%);
+  }
+  .ch.shine::after { animation: shine .9s ease-in-out both; animation-delay: var(--d, 0s); }
+  @keyframes shine {
+    from { background-position: 105% 0, 0 0; }
+    to { background-position: -5% 0, 0 0; }
+  }
+
+  #caption {
+    left: 960px;
+    top: 1004px;
+    transform: translateX(-50%);
+    padding: 8px 34px;
+    font-family: 'Orbitron', 'Consolas', monospace;
+    font-weight: 800;
+    font-size: 28px;
+    letter-spacing: .14em;
+    color: #e9fbff;
+    white-space: nowrap;
+    text-shadow: 0 0 12px rgba(111, 227, 255, .9);
+    background: linear-gradient(90deg, rgba(4, 18, 32, 0), rgba(4, 18, 32, .82) 12%, rgba(4, 18, 32, .82) 88%, rgba(4, 18, 32, 0));
+    border-top: 2px solid var(--hud);
+    border-bottom: 2px solid var(--hud);
+    opacity: 0;
+  }
+  #caption b { color: var(--hud); font-weight: 800; }
+
+  .spark {
+    width: 70px;
+    height: 70px;
+    margin: -35px 0 0 -35px;
+    background: radial-gradient(closest-side, #fff, #fff6c2 35%, rgba(255, 230, 120, 0));
+    clip-path: polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%);
+    filter: drop-shadow(0 0 8px #fff);
+    opacity: 0;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="shake">
+    <div id="shadow"></div>
+    <div id="flash"></div>
+    <div id="puffs"></div>
+    <div id="ship">
+      <div class="engine-glow"></div>
+      <div class="thruster t1"></div>
+      <div class="thruster t2"></div>
+      <img src="ironclad.webp" alt="">
+    </div>
+    <div id="ring"></div>
+    <div id="title">
+      <span class="word perfect">PERFECT</span>
+      <span class="word landing">LANDING</span>
+    </div>
+    <div id="caption"></div>
+    <div id="sparks"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const num = (k, d) => (q.has(k) && !isNaN(parseFloat(q.get(k))) ? parseFloat(q.get(k)) : d);
+  const flag = (k) => q.has(k) && !/^(0|false|no|off)$/i.test(q.get(k));
+  const opt = {
+    hold: Math.max(3, num('hold', 6.5)) * 1000,
+    volume: Math.min(1, Math.max(0, num('volume', 0.8))),
+    sound: !q.has('sound') || flag('sound'),
+    caption: q.has('caption') ? q.get('caption') : 'IRONCLAD · TOUCHDOWN CONFIRMED · <b>0.00 m/s</b>',
+    streamerbot: flag('streamerbot') || flag('sb'),
+    host: q.get('host') || '127.0.0.1',
+    port: q.get('port') || '8080',
+    trigger: (q.get('trigger') || 'perfect-landing').toLowerCase(),
+    loop: flag('loop'),
+  };
+  if (flag('bg')) document.body.classList.add('preview');
+
+  const $ = (s) => document.querySelector(s);
+  const stage = $('#stage');
+  const TOUCH = 1500;  // ms when the ship touches down
+
+  // ---------- fit 1920x1080 into whatever size the source is ----------
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(-50%, -50%) scale(${s})`;
+  }
+  addEventListener('resize', fit);
+  fit();
+
+  // ---------- build letters ----------
+  document.querySelectorAll('.word').forEach((w) => {
+    const text = w.textContent;
+    w.textContent = '';
+    for (const c of text) {
+      const s = document.createElement('span');
+      s.className = 'ch';
+      s.dataset.ch = c;
+      s.textContent = c;
+      w.appendChild(s);
+    }
+  });
+  const perfect = [...document.querySelectorAll('.perfect .ch')];
+  const landing = [...document.querySelectorAll('.landing .ch')];
+  const caption = $('#caption');
+  if (opt.caption && opt.caption !== '0') caption.innerHTML = opt.caption;
+  else caption.style.display = 'none';
+
+  // ---------- particles ----------
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const puffs = [];
+  for (let i = 0; i < 22; i++) {
+    const p = document.createElement('div');
+    p.className = 'puff';
+    $('#puffs').appendChild(p);
+    puffs.push(p);
+  }
+  const sparks = [];
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement('div');
+    p.className = 'spark';
+    $('#sparks').appendChild(p);
+    sparks.push(p);
+  }
+
+  // ---------- sound (made in the browser, no files needed) ----------
+  let ac = null, noiseBuf = null;
+  function audio() {
+    if (!opt.sound || opt.volume <= 0) return null;
+    try {
+      if (!ac) {
+        ac = new (window.AudioContext || window.webkitAudioContext)();
+        noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+        const d = noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      if (ac.state === 'suspended') ac.resume();
+      return ac;
+    } catch (e) { return null; }
+  }
+  function env(g, t, peak, attack, decay) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+  }
+  function noise(out, t, dur, type, f0, f1, peak, attack) {
+    const src = ac.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    const f = ac.createBiquadFilter();
+    f.type = type;
+    f.frequency.setValueAtTime(f0, t);
+    f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ac.createGain();
+    env(g, t, peak, attack, dur - attack);
+    src.connect(f).connect(g).connect(out);
+    src.start(t);
+    src.stop(t + dur + 0.05);
+  }
+  function tone(out, t, type, f0, f1, dur, peak, attack = 0.01) {
+    const o = ac.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ac.createGain();
+    env(g, t, peak, attack, dur);
+    o.connect(g).connect(out);
+    o.start(t);
+    o.stop(t + attack + dur + 0.05);
+  }
+  function playSound() {
+    const a = audio();
+    if (!a) return;
+    const out = a.createGain();
+    out.gain.value = opt.volume;
+    out.connect(a.destination);
+    const t0 = a.currentTime + 0.02, td = t0 + TOUCH / 1000;
+    // descent: engine roar building up
+    noise(out, t0, 1.6, 'lowpass', 250, 1100, 0.55, 1.2);
+    tone(out, t0, 'sawtooth', 48, 70, 1.5, 0.12, 1.1);
+    // touchdown: heavy thud, debris, hydraulic hiss
+    tone(out, td, 'sine', 130, 34, 0.7, 1.0);
+    noise(out, td, 0.9, 'lowpass', 1800, 120, 0.7, 0.005);
+    noise(out, td + 0.18, 1.3, 'highpass', 2500, 6000, 0.12, 0.05);
+    // "PERFECT" / "LANDING" stingers
+    const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98];
+    notes.forEach((n, i) => tone(out, td + 0.25 + i * 0.075, 'triangle', n, n, 0.7, 0.16));
+    tone(out, td + 0.8, 'sine', 2093, 2093, 1.2, 0.1);
+    tone(out, td + 0.8, 'triangle', 1046.5, 1046.5, 1.4, 0.14);
+    // lift-off whoosh
+    const tOut = t0 + opt.hold / 1000;
+    noise(out, tOut, 1.2, 'bandpass', 300, 2400, 0.45, 0.5);
+  }
+
+  // ---------- animation ----------
+  let running = [];
+  let playing = false;
+  let timers = [];
+  const A = (el, frames, o) => {
+    const anim = el.animate(frames, Object.assign({ fill: 'both' }, o));
+    running.push(anim);
+    return anim;
+  };
+  function reset() {
+    running.forEach((a) => a.cancel());
+    running = [];
+    timers.forEach(clearTimeout);
+    timers = [];
+    document.querySelectorAll('.ch.shine').forEach((c) => c.classList.remove('shine'));
+  }
+
+  function play() {
+    if (playing) return;
+    playing = true;
+    reset();
+    playSound();
+    const T = TOUCH, OUT = opt.hold;
+
+    // ship descends, overshoots a little, settles
+    A($('#ship'), [
+      { transform: 'translateY(-760px) scale(.55) rotate(-6deg)', opacity: 0, offset: 0 },
+      { transform: 'translateY(-420px) scale(.75) rotate(-4deg)', opacity: 1, offset: 0.25 },
+      { transform: 'translateY(14px) scale(1.02) rotate(.6deg)', opacity: 1, offset: 0.78 },
+      { transform: 'translateY(-6px) scale(1) rotate(-.3deg)', opacity: 1, offset: 0.9 },
+      { transform: 'translateY(0) scale(1) rotate(0deg)', opacity: 1, offset: 1 },
+    ], { duration: T * 1.28, easing: 'cubic-bezier(.22,.7,.3,1)' });
+    // lift off at the end
+    A($('#ship'), [
+      { transform: 'translateY(0) scale(1)', opacity: 1 },
+      { transform: 'translateY(30px) scale(1)', opacity: 1, offset: 0.15 },
+      { transform: 'translateY(-900px) scale(.6) rotate(3deg)', opacity: 0 },
+    ], { delay: OUT, duration: 1100, easing: 'cubic-bezier(.6,0,.8,.4)', fill: 'forwards', composite: 'replace' });
+
+    // engines: full burn coming down, flare on touchdown, idle, burn on lift-off
+    document.querySelectorAll('.thruster').forEach((th, i) => {
+      A(th, [
+        { opacity: 0.0, transform: 'scaleY(.3)' },
+        { opacity: 1, transform: 'scaleY(1.25)', offset: 0.15 },
+        { opacity: 1, transform: 'scaleY(.9)', offset: 0.55 },
+        { opacity: 1, transform: 'scaleY(1.5)', offset: 0.7 },
+        { opacity: 0.35, transform: 'scaleY(.35)', offset: 0.85 },
+        { opacity: 0, transform: 'scaleY(.2)' },
+      ], { duration: T + 900 });
+      A(th, [
+        { transform: 'scaleY(.9) scaleX(1)' },
+        { transform: 'scaleY(1.15) scaleX(.85)' },
+      ], { duration: 70 + i * 13, iterations: Math.ceil((T + 900) / 70), direction: 'alternate', composite: 'add', fill: 'none' });
+      A(th, [
+        { opacity: 0, transform: 'scaleY(.3)' },
+        { opacity: 1, transform: 'scaleY(1.6)', offset: 0.3 },
+        { opacity: 1, transform: 'scaleY(1.3)' },
+      ], { delay: OUT, duration: 1100, fill: 'forwards' });
+    });
+    A($('.engine-glow'), [
+      { opacity: 0 }, { opacity: 0.9, offset: 0.2 }, { opacity: 0.7, offset: 0.6 }, { opacity: 1, offset: 0.68 }, { opacity: 0 },
+    ], { duration: T + 900 });
+    A($('.engine-glow'), [{ opacity: 0 }, { opacity: 1 }], { delay: OUT, duration: 400, fill: 'forwards' });
+
+    // ground shadow grows as the ship gets close
+    A($('#shadow'), [
+      { opacity: 0, transform: 'scale(.3)' },
+      { opacity: 1, transform: 'scale(1)', offset: 0.9 },
+      { opacity: 1, transform: 'scale(1)' },
+    ], { duration: T });
+    A($('#shadow'), [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.4)' }], { delay: OUT, duration: 700, fill: 'forwards' });
+
+    // touchdown: flash, shockwave, shake, dust
+    A($('#flash'), [{ opacity: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 0 }], { delay: T - 40, duration: 700, easing: 'ease-out' });
+    A($('#ring'), [
+      { opacity: 0, transform: 'scale(.2)' },
+      { opacity: 1, transform: 'scale(.3)', offset: 0.05 },
+      { opacity: 0, transform: 'scale(2.3)' },
+    ], { delay: T, duration: 900, easing: 'cubic-bezier(.1,.7,.3,1)' });
+    A($('#shake'), [
+      { transform: 'translate(0,0)' },
+      { transform: 'translate(-14px, 18px)' },
+      { transform: 'translate(12px,-10px)' },
+      { transform: 'translate(-8px, 8px)' },
+      { transform: 'translate(6px,-4px)' },
+      { transform: 'translate(-3px, 2px)' },
+      { transform: 'translate(0,0)' },
+    ], { delay: T, duration: 480, easing: 'ease-out', fill: 'none' });
+    puffs.forEach((p, i) => {
+      const side = i % 2 ? 1 : -1;
+      const x0 = 960 + side * rand(40, 420);
+      const y0 = rand(500, 560);
+      const dx = side * rand(160, 560);
+      const dy = rand(-90, 25);
+      const s = rand(0.6, 1.5);
+      p.style.left = x0 + 'px';
+      p.style.top = y0 + 'px';
+      A(p, [
+        { opacity: 0, transform: `translate(0,0) scale(${s * 0.3})` },
+        { opacity: 0.95, transform: `translate(${dx * 0.35}px,${dy * 0.35}px) scale(${s})`, offset: 0.15 },
+        { opacity: 0, transform: `translate(${dx}px,${dy}px) scale(${s * 1.9})` },
+      ], { delay: T - 60 + rand(0, 160), duration: rand(1700, 2600), easing: 'cubic-bezier(.15,.8,.35,1)' });
+    });
+
+    // PERFECT slams in, letter by letter
+    perfect.forEach((c, i) => {
+      const r = [-4, 3, -2, 4, -3, 2, -4][i] || 0;
+      A(c, [
+        { opacity: 0, transform: `translateY(-40px) scale(3.2) rotate(${r * 3}deg)` },
+        { opacity: 1, transform: `translateY(0) scale(.86) rotate(${r}deg)`, offset: 0.55 },
+        { opacity: 1, transform: `translateY(0) scale(1.08) rotate(${r * 0.5}deg)`, offset: 0.78 },
+        { opacity: 1, transform: `translateY(0) scale(1) rotate(${r * 0.4}deg)` },
+      ], { delay: T + 180 + i * 75, duration: 520, easing: 'cubic-bezier(.3,.6,.4,1)' });
+    });
+    // LANDING bounces up from below
+    landing.forEach((c, i) => {
+      const r = [3, -2, 4, -3, 2, -4, 3][i] || 0;
+      A(c, [
+        { opacity: 0, transform: `translateY(260px) scale(.4) rotate(${-r * 4}deg)` },
+        { opacity: 1, transform: `translateY(-46px) scale(1.12) rotate(${r}deg)`, offset: 0.55 },
+        { opacity: 1, transform: `translateY(12px) scale(.96) rotate(${r * 0.5}deg)`, offset: 0.8 },
+        { opacity: 1, transform: `translateY(0) scale(1) rotate(${r * 0.4}deg)` },
+      ], { delay: T + 760 + i * 70, duration: 620, easing: 'cubic-bezier(.3,.6,.4,1)' });
+    });
+    // idle wobble so it feels alive while it's up
+    const wobble = (c, i, base) => A(c, [
+      { transform: 'translateY(0) scale(1)' },
+      { transform: 'translateY(-10px) scale(1.03)' },
+      { transform: 'translateY(0) scale(1)' },
+    ], { delay: base + i * 90, duration: 900, iterations: Infinity, easing: 'ease-in-out', composite: 'add', fill: 'none' });
+    perfect.forEach((c, i) => wobble(c, i, T + 1900));
+    landing.forEach((c, i) => wobble(c, i, T + 2100));
+
+    // shine sweeps across the letters
+    const shine = (at) => timers.push(setTimeout(() => {
+      [...perfect, ...landing].forEach((c, i) => {
+        c.classList.remove('shine');
+        void c.offsetWidth;
+        c.style.setProperty('--d', ((i % 7) * 0.06 + (i >= 7 ? 0.12 : 0)) + 's');
+        c.classList.add('shine');
+      });
+    }, at));
+    shine(T + 1500);
+    if (OUT - T > 4200) shine(T + 3600);
+
+    // HUD caption types in
+    A(caption, [
+      { opacity: 0, clipPath: 'inset(0 50% 0 50%)' },
+      { opacity: 1, clipPath: 'inset(0 50% 0 50%)', offset: 0.1 },
+      { opacity: 1, clipPath: 'inset(0 0% 0 0%)' },
+    ], { delay: T + 1500, duration: 650, easing: 'cubic-bezier(.2,.8,.3,1)' });
+
+    // sparkles around the title
+    sparks.forEach((p, i) => {
+      p.style.left = rand(330, 1590) + 'px';
+      p.style.top = (i % 2 ? rand(430, 520) : rand(880, 980)) + 'px';
+      const s = rand(0.6, 1.4);
+      A(p, [
+        { opacity: 0, transform: 'scale(0) rotate(0deg)' },
+        { opacity: 1, transform: `scale(${s}) rotate(45deg)`, offset: 0.4 },
+        { opacity: 0, transform: 'scale(0) rotate(120deg)' },
+      ], { delay: T + 1300 + i * rand(170, 260), duration: 800, iterations: Math.max(1, Math.floor((OUT - T - 1500) / 2600)), endDelay: 0, fill: 'none' });
+    });
+
+    // exit: letters pop away, caption collapses
+    [...perfect, ...landing].forEach((c, i) => {
+      A(c, [
+        { opacity: 1, transform: 'scale(1)' },
+        { opacity: 1, transform: 'scale(1.15)', offset: 0.35 },
+        { opacity: 0, transform: 'scale(0) rotate(-20deg)' },
+      ], { delay: OUT + 150 + (i % 7) * 40 + (i >= 7 ? 80 : 0), duration: 420, easing: 'cubic-bezier(.5,0,.8,.4)', fill: 'forwards' });
+    });
+    A(caption, [{ opacity: 1, transform: 'translateX(-50%) scaleX(1)' }, { opacity: 0, transform: 'translateX(-50%) scaleX(0)' }],
+      { delay: OUT, duration: 350, easing: 'ease-in', fill: 'forwards' });
+
+    timers.push(setTimeout(() => {
+      reset();
+      playing = false;
+      if (opt.loop) timers.push(setTimeout(play, 1200));
+    }, OUT + 1300));
+  }
+
+  // ---------- triggers ----------
+  // click the page to replay (handy when previewing in a browser)
+  addEventListener('click', () => { audio(); play(); });
+  // OBS: play whenever the source is switched on
+  addEventListener('obsSourceVisibleChanged', (e) => { if (e.detail && e.detail.visible) play(); });
+  window.perfectLanding = play;
+
+  // Streamer.bot WebSocket server: play on a Custom event that mentions the trigger word
+  function connectStreamerbot() {
+    let ws;
+    try { ws = new WebSocket(`ws://${opt.host}:${opt.port}/`); } catch (e) { setTimeout(connectStreamerbot, 3000); return; }
+    ws.onopen = () => {
+      console.log('[perfect-landing] connected to Streamer.bot');
+      ws.send(JSON.stringify({ request: 'Subscribe', id: 'pl-subscribe', events: { General: ['Custom'] } }));
+    };
+    ws.onmessage = (m) => {
+      let msg;
+      try { msg = JSON.parse(m.data); } catch (e) { return; }
+      if (!msg || msg.id) return;  // replies to our own requests
+      if (JSON.stringify(msg.data !== undefined ? msg.data : msg).toLowerCase().includes(opt.trigger)) play();
+    };
+    ws.onclose = () => setTimeout(connectStreamerbot, 3000);
+    ws.onerror = () => ws.close();
+  }
+
+  // start once the font is ready so the letters don't swap mid-animation
+  const ready = Promise.race([
+    document.fonts ? document.fonts.load('285px "Luckiest Guy"').then(() => document.fonts.load('30px Orbitron')) : Promise.resolve(),
+    new Promise((r) => setTimeout(r, 2500)),
+  ]).catch(() => {});
+  const img = $('#ship img');
+  const imgReady = img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = r; });
+  Promise.all([ready, imgReady]).then(() => {
+    if (opt.streamerbot) connectStreamerbot();
+    else play();
+  });
+})();
+</script>
+</body>
+</html>
