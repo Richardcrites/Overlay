@@ -997,6 +997,7 @@
     const s = P.settings;
     const config = { source, volume: s.volume, gap: s.gap, chatTest: s.chatTest, catchUp: s.catchUp !== false, fontCss: FONT_CSS, hideStatus: source === 'streamelements' };
     if (source === 'twitch') Object.assign(config, { channel: s.channel, token: s.token, testOnLoad: s.testOnLoad });
+    else if (s.channel) config.channel = s.channel;
     return { project, config };
   }
 
