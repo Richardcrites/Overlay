@@ -996,8 +996,13 @@
     const project = { version: P.version, width: W, height: H, assets, alerts: compactAlerts() };
     const s = P.settings;
     const config = { source, volume: s.volume, gap: s.gap, chatTest: s.chatTest, catchUp: s.catchUp !== false, fontCss: FONT_CSS, hideStatus: source === 'streamelements' };
+    const sb = { host: s.sbHost || '127.0.0.1', port: s.sbPort || 8080, password: s.sbPassword || '' };
     if (source === 'twitch') Object.assign(config, { channel: s.channel, token: s.token, testOnLoad: s.testOnLoad });
-    else if (s.channel) config.channel = s.channel;
+    else if (source === 'streamerbot') Object.assign(config, { streamerbot: sb, testOnLoad: s.sbTestOnLoad });
+    else {
+      if (s.channel) config.channel = s.channel;
+      if (s.sbCheers) config.streamerbot = sb;
+    }
     return { project, config };
   }
 
@@ -1028,8 +1033,8 @@
       '})();\n';
   }
 
-  async function buildOverlayHtml() {
-    const js = await buildPlayerScript('twitch');
+  async function buildOverlayHtml(source) {
+    const js = await buildPlayerScript(source || 'twitch');
     return '<!doctype html>\n<html><head><meta charset="utf-8"><title>Quantum Paws Overlay</title></head><body>\n<script>\n' +
       js + '</' + 'script>\n</body></html>\n';
   }
@@ -1066,10 +1071,15 @@
     $('#exChatTest').checked = !!s.chatTest;
     $('#exCatchUp').checked = s.catchUp !== false;
     $('#exTestOnLoad').checked = !!s.testOnLoad;
+    $('#exSbCheers').checked = !!s.sbCheers;
+    $('#exSbHost').value = s.sbHost || '';
+    $('#exSbPort').value = s.sbPort || '';
+    $('#exSbPassword').value = s.sbPassword || '';
+    $('#exSbTestOnLoad').checked = !!s.sbTestOnLoad;
     if (s.token) { $('#followDetails').open = true; validateToken(); }
     $('#copyStatus').textContent = '';
     $('#exPages').value = s.pagesUrl || (/^https?:/.test(location.protocol) && !/localhost|127\.0\.0\.1/.test(location.host) ? location.origin + location.pathname.replace(/[^/]*$/, '') : '');
-    showExportTab(s.token ? 'obs' : 'se');
+    showExportTab(s.lastExport || (s.token ? 'obs' : 'se'));
     dlg.showModal();
   }
   function readExportForm() {
@@ -1082,6 +1092,11 @@
     s.chatTest = $('#exChatTest').checked;
     s.catchUp = $('#exCatchUp').checked;
     s.testOnLoad = $('#exTestOnLoad').checked;
+    s.sbCheers = $('#exSbCheers').checked;
+    s.sbHost = $('#exSbHost').value.trim();
+    s.sbPort = parseInt($('#exSbPort').value, 10) || '';
+    s.sbPassword = $('#exSbPassword').value;
+    s.sbTestOnLoad = $('#exSbTestOnLoad').checked;
     scheduleSave();
   }
   async function validateToken() {
@@ -1132,7 +1147,14 @@
     $('#loaderStatus').textContent = ok ? '\u2714 Copied. Paste it into the StreamElements JS tab (replace everything).' : 'Copy was blocked by the browser.';
     $('#loaderStatus').style.color = ok ? '#5cffb0' : '#ff5a6a';
   });
+  $('#btnDownloadSb').addEventListener('click', async () => {
+    readExportForm();
+    const html = await buildOverlayHtml('streamerbot');
+    download('quantum-paws-streamerbot.html', html, 'text/html');
+    toast('Overlay downloaded (' + Math.round(html.length / 1024) + ' KB). Add it to OBS as a Browser source (Local file).', 5000);
+  });
   function showExportTab(which) {
+    if (P) { P.settings.lastExport = which; scheduleSave(); }
     for (const b of document.querySelectorAll('[data-ex]')) b.classList.toggle('active', b.dataset.ex === which);
     for (const p of document.querySelectorAll('[data-expane]')) p.hidden = p.dataset.expane !== which;
   }

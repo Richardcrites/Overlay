@@ -63,6 +63,28 @@ To update a design after that, just upload a new `alerts.json`. It can take up t
 
 When a gift bomb arrives, you get one "Gift Bomb" alert instead of one alert per gifted sub.
 
+## Way 1b: Streamer.bot
+
+Streamer.bot is logged into Twitch as you, so it sees **every** follow, sub, resub, gift sub, gift bomb, cheer and raid.
+That includes the same viewer cheering 1 bit over and over. You don't need to build any Streamer.bot actions.
+
+1. In Streamer.bot: **Platforms → Twitch**, connect your **Broadcaster** account.
+2. **Servers/Clients → WebSocket Server**: tick **Auto Start** and click **Start Server**. The default is `127.0.0.1:8080`.
+   It's already on if you use Perfect Landing.
+3. In the editor: **Export overlay → Streamer.bot → Download overlay.html**.
+4. In OBS: add a **Browser** source → tick **Local file** → pick the file → **1920 × 1080** → tick **Control audio via OBS**.
+5. Type `!testalert all` in your chat to test it (works for you and your mods).
+
+When OBS loads the source, a small "Connected to Streamer.bot" message shows in the bottom-left for a few seconds.
+If it says "Waiting for Streamer.bot", the WebSocket server isn't started.
+
+If you turned on authentication for the WebSocket server, enter the password under **Streamer.bot connection settings**.
+Change the address and port there too if they aren't the defaults.
+
+**Don't run the dog alerts in StreamElements at the same time,** or every alert plays twice.
+If you'd rather keep StreamElements for everything else, use Way 1 and tick
+**"Also catch cheers through Streamer.bot"** instead. Cheers then come from both, and each one still plays only once.
+
 ## Way 2: OBS file (no StreamElements)
 
 1. In the export window, open the **OBS file** tab. Type your Twitch channel name and click **Download overlay.html**.

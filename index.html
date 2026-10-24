@@ -90,6 +90,7 @@
       <h2>Put your alerts on stream</h2>
       <div class="extabs" role="tablist">
         <button type="button" data-ex="se" class="active">StreamElements <span class="pill">Easiest</span></button>
+        <button type="button" data-ex="sb">Streamer.bot</button>
         <button type="button" data-ex="obs">OBS file</button>
       </div>
 
@@ -106,6 +107,7 @@
           <li>Click the overlay's <b>Save</b> button (top right). Don't skip this: <b>Done</b> alone doesn't save.</li>
           <li>If that overlay isn't in OBS yet, copy its link (&#x1F517; at the top) into a <b>Browser</b> source.</li>
         </ol>
+        <label class="check small"><input type="checkbox" id="exSbCheers"> Also catch cheers through <b>Streamer.bot</b> (if it runs on the streaming PC; settings on the Streamer.bot tab). Each cheer still plays once.</label>
         <p class="small muted"><b>Test:</b> click <b>Emulate</b> in the StreamElements editor, or type <code>!testalert all</code> in your chat.<br>
         <b>Changed a design later?</b> Copy again and paste over the JS tab. Nothing changes in OBS.</p>
         <details id="loaderDetails">
@@ -118,6 +120,28 @@
             <li><button type="button" id="btnCopyLoader">Copy tiny code</button> &rarr; paste it into the StreamElements <b>JS</b> tab &rarr; <b>Done</b> &rarr; <b>Save</b>. <span id="loaderStatus"></span></li>
           </ol>
           <p class="small muted">From then on, to update a design you only re-upload <code>alerts.json</code> to GitHub. It can take up to 10 minutes to show up. Then right-click the source in OBS &rarr; <b>Refresh</b>.</p>
+        </details>
+      </div>
+
+      <div data-expane="sb" hidden>
+        <p class="muted small">Streamer.bot is logged into Twitch as you, so it sees <b>every</b> follow, sub, resub, gift sub, gift bomb, cheer and raid, including the same viewer cheering 1 bit again and again. You don't need any Streamer.bot actions.</p>
+        <ol class="steps small">
+          <li>In Streamer.bot: <b>Platforms &rarr; Twitch</b>, connect your <b>Broadcaster</b> account (you've likely done this already).</li>
+          <li><b>Servers/Clients &rarr; WebSocket Server</b>: tick <b>Auto Start</b> and click <b>Start Server</b>. (Already on if you use Perfect Landing.)</li>
+          <li><button type="button" id="btnDownloadSb" class="primary">Download overlay.html</button></li>
+          <li>In OBS: add a <b>Browser</b> source &rarr; tick <b>Local file</b> &rarr; pick the file &rarr; <b>1920 &times; 1080</b> &rarr; tick <b>Control audio via OBS</b>.</li>
+          <li>Test: type <code>!testalert all</code> in your chat.</li>
+        </ol>
+        <p class="warn small">If your dog alerts are also in StreamElements, delete that custom widget or every alert will play twice.</p>
+        <details>
+          <summary>Streamer.bot connection settings</summary>
+          <div class="grid2">
+            <label>Address <input id="exSbHost" placeholder="127.0.0.1" autocomplete="off"></label>
+            <label>Port <input id="exSbPort" type="number" placeholder="8080"></label>
+          </div>
+          <label>Password <small class="muted">(only if you turned on authentication in Streamer.bot)</small>
+            <input id="exSbPassword" type="password" autocomplete="off"></label>
+          <label class="check"><input type="checkbox" id="exSbTestOnLoad"> Play every alert once when OBS loads the source</label>
         </details>
       </div>
 

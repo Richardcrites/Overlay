@@ -670,8 +670,11 @@ function OverlayRuntime() {
 
   // ---------------------------------------------------------------- Twitch chat (subs, gifts, cheers, raids)
   function tierName(plan) {
-    plan = String(plan || '');
-    return plan.toLowerCase() === 'prime' ? 'Prime' : plan === '2000' ? 'Tier 2' : plan === '3000' ? 'Tier 3' : 'Tier 1';
+    plan = String(plan == null ? '' : plan).toLowerCase();
+    if (plan.includes('prime')) return 'Prime';
+    if (plan === '2000' || plan === '2' || plan === 'tier 2' || plan === 'tier2') return 'Tier 2';
+    if (plan === '3000' || plan === '3' || plan === 'tier 3' || plan === 'tier3') return 'Tier 3';
+    return 'Tier 1';
   }
 
   function parseIrc(line) {
@@ -822,6 +825,105 @@ function OverlayRuntime() {
       .catch((err) => log('Follow alerts disabled: ' + err.message, true));
   }
 
+  // ---------------------------------------------------------------- Streamer.bot WebSocket server
+  // Streamer.bot is logged into Twitch as the broadcaster and reports every cheer, sub, gift and raid.
+  // Field names differ between Streamer.bot versions, so each value is looked up a few ways.
+  function sbName(d) {
+    const m = d.message && typeof d.message === 'object' ? d.message : {};
+    const u = d.user && typeof d.user === 'object' ? d.user : {};
+    return d.displayName || d.user_name || d.userName || u.name || u.display_name || u.login || m.displayName || m.username ||
+      d.username || d.user_login || d.from_broadcaster_user_name || 'Someone';
+  }
+  function sbLogin(d) {
+    const m = d.message && typeof d.message === 'object' ? d.message : {};
+    const u = d.user && typeof d.user === 'object' ? d.user : {};
+    return d.userName || d.user_login || u.login || m.username || d.username || '';
+  }
+  function sbText(d) {
+    if (typeof d.message === 'string') return d.message;
+    if (d.message && typeof d.message === 'object') return d.message.message || d.message.text || '';
+    return d.text || d.userInput || '';
+  }
+
+  async function sbAuth(password, salt, challenge) {
+    const b64sha = async (str) => {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+    };
+    return b64sha((await b64sha(password + salt)) + challenge);
+  }
+
+  function StreamerbotEvents(onEvent, opts) {
+    opts = opts || {};
+    const log = opts.log || function () {};
+    const url = 'ws://' + (opts.host || '127.0.0.1') + ':' + (opts.port || 8080) + '/';
+    const events = opts.cheersOnly ? ['Cheer'] : ['Follow', 'Cheer', 'Sub', 'ReSub', 'GiftSub', 'GiftBomb', 'Raid'];
+    if (opts.chatTest && !opts.cheersOnly) events.push('ChatMessage');
+    let backoff = 2000, warned = false;
+
+    function handle(type, d) {
+      const user = sbName(d);
+      if (type === 'Cheer') {
+        const bits = (d.message && typeof d.message === 'object' && d.message.bits) || d.bits || d.amount;
+        onEvent({ type: 'cheer', user, login: sbLogin(d), bits: String(parseInt(bits, 10) || 0), message: sbText(d).replace(/\b[A-Za-z]+\d+\b/g, '').replace(/\s+/g, ' ').trim() });
+      } else if (type === 'Follow') onEvent({ type: 'follow', user });
+      else if (type === 'Sub') onEvent({ type: 'sub', user, tier: tierName(d.isPrime ? 'prime' : d.subTier || d.tier || d.sub_tier) });
+      else if (type === 'ReSub') {
+        onEvent({ type: 'resub', user, months: String(d.cumulativeMonths || d.cumulative_months || d.monthsSubscribed || d.months || 1),
+          tier: tierName(d.isPrime ? 'prime' : d.subTier || d.tier || d.sub_tier), message: sbText(d) });
+      } else if (type === 'GiftSub') {
+        if (d.fromSubBomb || d.fromGiftBomb || d.fromCommunitySubGift) return; // part of a gift bomb
+        const r = d.recipient && typeof d.recipient === 'object' ? d.recipient : {};
+        onEvent({ type: 'giftsub', user: d.isAnonymous || d.anonymous ? 'An anonymous pilot' : user,
+          recipient: d.recipientDisplayName || d.recipientUserName || d.recipient_user_name || r.name || r.login || 'someone',
+          tier: tierName(d.subTier || d.tier || d.sub_tier) });
+      } else if (type === 'GiftBomb') {
+        onEvent({ type: 'giftbomb', user: d.isAnonymous || d.anonymous ? 'An anonymous pilot' : user,
+          count: String(d.gifts || d.total || d.count || d.amount || 1), tier: tierName(d.subTier || d.tier || d.sub_tier) });
+      } else if (type === 'Raid') onEvent({ type: 'raid', user, viewers: String(d.viewers || d.viewerCount || d.viewer_count || 0) });
+      else if (type === 'ChatMessage' && opts.onTest) {
+        const m = d.message && typeof d.message === 'object' ? d.message : d;
+        const text = sbText(d);
+        const role = parseInt(m.role, 10) || 0; // 3 = moderator, 4 = broadcaster
+        if (/^!testalert\b/i.test(text) && (role >= 3 || m.isModerator || m.isBroadcaster)) opts.onTest((text.split(/\s+/)[1] || 'follow').toLowerCase());
+      }
+    }
+
+    function connect() {
+      let ws;
+      try { ws = new WebSocket(url); } catch (e) { retry(); return; }
+      ws.onmessage = async (e) => {
+        let m;
+        try { m = JSON.parse(e.data); } catch (err) { return; }
+        if (m.request === 'Hello') {
+          backoff = 2000;
+          warned = false;
+          if (m.authentication) {
+            if (!opts.password) { log('Streamer.bot wants a password: add it in the export window, or turn off authentication', true); return; }
+            ws.send(JSON.stringify({ request: 'Authenticate', id: 'qp-auth', authentication: await sbAuth(opts.password, m.authentication.salt, m.authentication.challenge) }));
+          }
+          ws.send(JSON.stringify({ request: 'Subscribe', id: 'qp-sub', events: { Twitch: events } }));
+          return;
+        }
+        if (m.id === 'qp-auth' && m.status !== 'ok') log('Streamer.bot rejected the password', true);
+        if (m.id === 'qp-sub') {
+          if (m.status === 'ok') log(opts.cheersOnly ? 'Streamer.bot connected (cheers)' : 'Connected to Streamer.bot');
+          else log('Streamer.bot: ' + (m.error || 'could not subscribe to events'), true);
+        }
+        if (m.event && m.data && (!m.event.source || m.event.source === 'Twitch')) handle(m.event.type, m.data);
+      };
+      ws.onclose = () => {
+        if (!warned) { log('Waiting for Streamer.bot at ' + url + ' (is its WebSocket server started?)', true); warned = true; }
+        retry();
+      };
+    }
+    function retry() {
+      setTimeout(connect, backoff);
+      backoff = Math.min(backoff * 1.5, 15000);
+    }
+    connect();
+  }
+
   // ---------------------------------------------------------------- StreamElements custom widget events
   // StreamElements handles the Twitch login and sends every event to the widget, follows included.
   function StreamElementsEvents(onEvent, opts) {
@@ -852,6 +954,7 @@ function OverlayRuntime() {
       }, { log: opts.log });
     }
     startChat(opts.channel);
+    if (opts.streamerbot) StreamerbotEvents((ev) => cheerOnce('sb', ev, [ev.user, ev.login]), Object.assign({ cheersOnly: true, log: opts.log }, opts.streamerbot));
     window.addEventListener('onWidgetLoad', (obj) => {
       const ch = obj && obj.detail && obj.detail.channel;
       startChat(ch && ch.username);
@@ -973,8 +1076,10 @@ function OverlayRuntime() {
 
     // Listen right away: events that arrive while photos and fonts load wait in the queue.
     if (config.source === 'streamelements') {
-      StreamElementsEvents(enqueue, { chatTest: config.chatTest, onTest: test, channel: config.channel, log });
+      StreamElementsEvents(enqueue, { chatTest: config.chatTest, onTest: test, channel: config.channel, log, streamerbot: config.streamerbot });
       log('Quantum Paws alerts ready');
+    } else if (config.source === 'streamerbot') {
+      StreamerbotEvents(enqueue, Object.assign({ chatTest: config.chatTest, onTest: test, log }, config.streamerbot));
     } else if (config.channel) TwitchChat(config.channel, enqueue, { log, chatTest: config.chatTest, onTest: test });
     else log('No Twitch channel set - re-export the overlay with your channel name', true);
     if (config.token) TwitchFollows(config.token, enqueue, log);
@@ -1000,6 +1105,7 @@ function OverlayRuntime() {
       if (!current && queue.length && now >= cooldownUntil) {
         const ev = queue.shift();
         current = { ev, alert: project.alerts[ev.type], t: 0 };
+        try { window.dispatchEvent(new CustomEvent('quantumpaws:alert', { detail: ev })); } catch (e) { /* old browsers */ }
         playSound(current.alert.sound, project.assets, config.volume == null ? 0.8 : config.volume);
       }
       ctx.clearRect(0, 0, W, H);
