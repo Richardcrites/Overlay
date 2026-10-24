@@ -112,6 +112,11 @@ Tokens expire after a while. If follow alerts stop working, connect again and re
 | Move or resize the whole alert | Alert settings → **Move all X/Y**, **Scale all** |
 | Use one design for every alert | Alert settings → **Copy design to all** (keeps each alert's own wording) |
 
+## Perfect Landing (Stream Deck alert)
+
+`perfect-landing/` has a separate, self-playing **PERFECT LANDING** alert with the Ironclad touching down.
+You fire it with a Stream Deck key through Streamer.bot. Setup steps are in [perfect-landing/README.md](perfect-landing/README.md).
+
 ## Files
 
 ```
@@ -120,4 +125,5 @@ css/editor.css    editor styles
 js/runtime.js     animation engine, sounds, and Twitch connections (also embedded in exported overlays)
 js/templates.js   the built-in Star Citizen / dog templates
 js/editor.js      editor UI: timeline, keyframes, inspector, export
+perfect-landing/  the Perfect Landing Stream Deck alert (index.html + ironclad.webp)
 ```
