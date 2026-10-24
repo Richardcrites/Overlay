@@ -145,6 +145,12 @@ Tokens expire after a while. If follow alerts stop working, connect again and re
 `perfect-landing/` has a separate, self-playing **PERFECT LANDING** alert with the Ironclad touching down.
 You fire it with a Stream Deck key through Streamer.bot. Setup steps are in [perfect-landing/README.md](perfect-landing/README.md).
 
+## ASOP Transition (scene transition)
+
+A first-person walk up to the Goopa Troopas ASOP terminal. The camera pushes into its screen, which then dissolves to the stream.
+It comes as an OBS **Stinger** video with a transparent background (`asop-transition/asop-transition.webm`, transition point **2450 ms**)
+and as a browser source. Setup is in [asop-transition/README.md](asop-transition/README.md).
+
 ## Files
 
 ```

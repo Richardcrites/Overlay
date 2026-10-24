@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASOP Transition</title>
+<!--
+  ASOP TRANSITION: walk up to the Goopa Troopas ship terminal, push into the screen, dissolve to the stream.
+
+  Best as an OBS Stinger: use asop-transition.webm (rendered from this page). See README.md in this folder.
+  This page also works as a Browser source (1920 x 1080) that plays when shown.
+
+  Options go after the file name, for example  index.html?volume=0.5
+    volume=0.8          0 to 1
+    sound=0             no sound
+    streamerbot=1       wait for a Streamer.bot WebSocket event instead of playing on load
+    host=127.0.0.1      Streamer.bot WebSocket server address
+    port=8080           Streamer.bot WebSocket server port
+    trigger=asop        word the Streamer.bot event must contain
+    loop=1              replay forever (for previewing)
+    bg=1                show a pretend stream behind it (for previewing)
+-->
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body.preview { background: radial-gradient(ellipse at 30% 120%, #c26a2e 0 35%, #3a1d10 46%, #0a0f1a 47%, #04060c 100%); }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+(() => {
+  'use strict';
+  const W = 1920, H = 1080, CX = W / 2, CY = H / 2;
+
+  // ---- timing (seconds)
+  const T_WALK = 1.75;      // arrive at the terminal
+  const T_PUSH = 2.45;      // screen fills the view; this is the stinger "transition point"
+  const T_END = 3.3;        // fully dissolved to the stream
+  const DURATION = 3.4;
+
+  // ---- the terminal image (asop.webp, 1140 x 380)
+  const IMG_W = 1140, IMG_H = 380;
+  const SCREEN = { x: 72, y: 62, w: 1000, h: 282 };          // the glowing blue screen, in image pixels
+  const FOCUS = { x: SCREEN.x + SCREEN.w / 2, y: SCREEN.y + SCREEN.h / 2 };
+  const IMG_SCALE_AT_1 = 1800 / IMG_W;                        // image scale when the camera is 1 unit from the wall
+
+  // ---- corridor geometry (screen pixels at 1 unit away)
+  const WALL_HALF = 1400, EYE_DOWN = 520, EYE_UP = 520;
+  const RIBS = [0.9, 2.1, 3.3, 4.5, 5.7];                      // distances of corridor ribs from the end wall
+
+  const q = new URLSearchParams(location.search);
+  const num = (k, d) => (q.has(k) && !isNaN(parseFloat(q.get(k))) ? parseFloat(q.get(k)) : d);
+  const flag = (k) => q.has(k) && !/^(0|false|no|off)$/i.test(q.get(k));
+  const opt = {
+    volume: Math.max(0, Math.min(1, num('volume', 0.8))),
+    sound: !q.has('sound') || flag('sound'),
+    streamerbot: flag('streamerbot') || flag('sb'),
+    host: q.get('host') || '127.0.0.1',
+    port: q.get('port') || '8080',
+    trigger: (q.get('trigger') || 'asop').toLowerCase(),
+    loop: flag('loop'),
+  };
+  if (flag('bg')) document.body.classList.add('preview');
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const easeInOutSine = (p) => -(Math.cos(Math.PI * p) - 1) / 2;
+  const easeInCubic = (p) => p * p * p;
+  const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+  // ---- camera: distance to the terminal wall over time
+  function camDist(t) {
+    if (t < T_WALK) return lerp(4.9, 1.0, easeInOutSine(clamp01(t / T_WALK)));
+    if (t < T_PUSH) return lerp(1.0, 0.26, easeInCubic((t - T_WALK) / (T_PUSH - T_WALK)));
+    return Math.max(0.16, 0.26 - (t - T_PUSH) * 0.12);
+  }
+  const MAX_SPEED = 3.9 * Math.PI / 2 / T_WALK;
+  function walkSpeed(t) {
+    if (t <= 0 || t >= T_WALK) return 0;
+    return (camDist(t - 0.01) - camDist(t + 0.01)) / 0.02 / MAX_SPEED;
+  }
+  const STEPS_PER_SEC = 2.0;
+
+  // ---- one-time prep: the terminal with its outer edge feathered into the wall, and a noise tile
+  const art = new Image();
+  let terminal = null;
+  art.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = IMG_W; c.height = IMG_H;
+    const g = c.getContext('2d');
+    g.drawImage(art, 0, 0);
+    g.globalCompositeOperation = 'destination-out';
+    const f = 14;
+    for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, f, 0, 0, 0, f, IMG_H], [IMG_W, 0, IMG_W - f, 0, IMG_W - f, 0, f, IMG_H], [0, 0, 0, f, 0, 0, IMG_W, f], [0, IMG_H, 0, IMG_H - f, 0, IMG_H - f, IMG_W, f]]) {
+      const gr = g.createLinearGradient(x0, y0, x1, y1);
+      gr.addColorStop(0, 'rgba(0,0,0,1)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr;
+      g.fillRect(rx, ry, rw, rh);
+    }
+    terminal = c;
+    ready();
+  };
+  art.src = 'asop.webp';
+
+  const noise = document.createElement('canvas');
+  noise.width = noise.height = 256;
+  {
+    const g = noise.getContext('2d'), d = g.createImageData(256, 256);
+    for (let i = 0; i < d.data.length; i += 4) { const v = hash(i) * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 22; }
+    g.putImageData(d, 0, 0);
+  }
+  const buf = document.createElement('canvas');
+  buf.width = W; buf.height = H;
+  const b = buf.getContext('2d');
+  b.imageSmoothingQuality = 'high';
+
+  // ---- the corridor and terminal, as seen from distance d
+  function drawScene(g, t) {
+    const d = camDist(t), k = 1 / d;
+    g.fillStyle = '#04060a';
+    g.fillRect(0, 0, W, H);
+
+    const wl = CX - WALL_HALF * k, wr = CX + WALL_HALF * k, wt = CY - EYE_UP * k, wb = CY + EYE_DOWN * k;
+    const quad = (pts, fill) => { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath(); g.fillStyle = fill; g.fill(); };
+
+    // Ceiling, floor and side walls, lit faintly by the screen.
+    let gr = g.createLinearGradient(0, 0, 0, wt);
+    gr.addColorStop(0, '#07090e'); gr.addColorStop(1, '#151a26');
+    quad([[0, 0], [W, 0], [wr, wt], [wl, wt]], gr);
+    gr = g.createLinearGradient(0, wb, 0, H);
+    gr.addColorStop(0, '#1b2033'); gr.addColorStop(1, '#06070b');
+    quad([[wl, wb], [wr, wb], [W, H], [0, H]], gr);
+    gr = g.createLinearGradient(0, 0, wl, 0);
+    gr.addColorStop(0, '#05070b'); gr.addColorStop(1, '#121725');
+    quad([[0, 0], [wl, wt], [wl, wb], [0, H]], gr);
+    gr = g.createLinearGradient(W, 0, wr, 0);
+    gr.addColorStop(0, '#05070b'); gr.addColorStop(1, '#121725');
+    quad([[W, 0], [wr, wt], [wr, wb], [W, H]], gr);
+
+    // End wall: dark metal panels.
+    g.fillStyle = '#10141d';
+    g.fillRect(wl, wt, wr - wl, wb - wt);
+    g.strokeStyle = 'rgba(120,140,190,0.08)';
+    g.lineWidth = Math.max(1, 3 * k);
+    g.beginPath();
+    for (let i = -4; i <= 4; i++) { const x = CX + i * 330 * k; g.moveTo(x, wt); g.lineTo(x, wb); }
+    g.moveTo(wl, CY - 330 * k); g.lineTo(wr, CY - 330 * k);
+    g.moveTo(wl, CY + 330 * k); g.lineTo(wr, CY + 330 * k);
+    g.stroke();
+
+    // Screen light spilling onto the wall and floor.
+    const flicker = 0.92 + 0.08 * Math.sin(t * 37) * Math.sin(t * 11.3);
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    gr = g.createRadialGradient(CX, CY, 0, CX, CY, 1100 * k);
+    gr.addColorStop(0, `rgba(110,120,255,${0.32 * flicker})`); gr.addColorStop(1, 'rgba(110,120,255,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, W, H);
+    gr = g.createRadialGradient(CX, wb, 0, CX, wb, 900 * k);
+    gr.addColorStop(0, `rgba(120,130,255,${0.25 * flicker})`); gr.addColorStop(1, 'rgba(120,130,255,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, wb, W, H - wb);
+    g.restore();
+
+    // The terminal, mounted on the end wall.
+    const s = IMG_SCALE_AT_1 * k;
+    const x0 = CX - FOCUS.x * s, y0 = CY - FOCUS.y * s;
+    if (terminal) {
+      g.save();
+      g.shadowColor = 'rgba(0,0,0,0.7)';
+      g.shadowBlur = 40 * k;
+      g.drawImage(terminal, x0, y0, IMG_W * s, IMG_H * s);
+      g.restore();
+    }
+    // Screen life: scanlines, a rolling refresh band, flicker, and a ping on arrival.
+    const sx = x0 + SCREEN.x * s, sy = y0 + SCREEN.y * s, sw = SCREEN.w * s, sh = SCREEN.h * s;
+    g.save();
+    g.beginPath(); g.rect(sx, sy, sw, sh); g.clip();
+    g.fillStyle = 'rgba(0,0,30,0.10)';
+    for (let y = Math.floor(sy); y < sy + sh; y += 4) g.fillRect(sx, y, sw, 1.5);
+    const band = sy + ((t * 0.55) % 1) * (sh + 160) - 80;
+    gr = g.createLinearGradient(0, band - 70, 0, band + 70);
+    gr.addColorStop(0, 'rgba(190,200,255,0)'); gr.addColorStop(0.5, 'rgba(190,200,255,0.12)'); gr.addColorStop(1, 'rgba(190,200,255,0)');
+    g.fillStyle = gr;
+    g.fillRect(sx, band - 70, sw, 140);
+    const ping = t > T_WALK ? Math.exp(-(t - T_WALK) * 7) : 0;
+    g.globalCompositeOperation = 'lighter';
+    g.fillStyle = `rgba(150,160,255,${0.03 * (1 - flicker) * 10 + ping * 0.35})`;
+    g.fillRect(sx, sy, sw, sh);
+    g.restore();
+
+    // Corridor ribs and ceiling lights between us and the wall.
+    drawRibs(g, d);
+
+    // Vignette and film grain.
+    gr = g.createRadialGradient(CX, CY, H * 0.35, CX, CY, H * 1.05);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.75)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, W, H);
+    const f = Math.floor(t * 30);
+    g.save();
+    g.globalCompositeOperation = 'overlay';
+    g.fillStyle = g.createPattern(noise, 'repeat');
+    g.translate((hash(f) * 256) | 0, (hash(f + 7) * 256) | 0);
+    g.fillRect(-256, -256, W + 512, H + 512);
+    g.restore();
+  }
+
+  // Ribs stand r units in front of the end wall, so their depth from the camera is d - r.
+  // Walking forward, they pass by and drop out once they're behind us. Drawn far to near.
+  function drawRibs(g, d) {
+    for (const r of RIBS) {
+      const z = d - r;
+      if (z < 0.12) continue;
+      const k = 1 / z;
+      const top = CY - EYE_UP * k, bot = CY + EYE_DOWN * k, half = WALL_HALF * k, thick = 70 * k;
+      if (top > H || bot < 0) continue;
+      g.fillStyle = '#0b0e15';
+      g.fillRect(CX - half - thick, top, thick, bot - top);
+      g.fillRect(CX + half, top, thick, bot - top);
+      g.fillRect(CX - half - thick, top - thick * 0.6, 2 * (half + thick), thick * 0.6);
+      g.strokeStyle = 'rgba(120,140,255,0.18)';
+      g.lineWidth = Math.max(1, 4 * k);
+      g.beginPath();
+      g.moveTo(CX - half, top); g.lineTo(CX - half, bot);
+      g.moveTo(CX + half, top); g.lineTo(CX + half, bot);
+      g.stroke();
+      // Floor seam.
+      g.strokeStyle = 'rgba(140,150,220,0.10)';
+      g.beginPath(); g.moveTo(CX - half, bot); g.lineTo(CX + half, bot); g.stroke();
+      // Ceiling light strip.
+      g.save();
+      g.shadowColor = '#bcd6ff';
+      g.shadowBlur = 40 * k;
+      g.fillStyle = '#dbe8ff';
+      g.fillRect(CX - 260 * k, top + 6 * k, 520 * k, 16 * k);
+      g.restore();
+    }
+  }
+
+  // ---- full frame at time t, onto the visible canvas (transparent where the stream should show)
+  function renderAt(t) {
+    ctx.clearRect(0, 0, W, H);
+    if (t < 0 || t >= T_END || !terminal) return;
+
+    // Walking head bob: up/down once per step, sway and roll once per two steps.
+    const sp = walkSpeed(t), ph = t * STEPS_PER_SEC;
+    const bobY = (Math.abs(Math.sin(Math.PI * ph)) - 0.5) * 22 * sp;
+    const swayX = Math.sin(Math.PI * ph) * 14 * sp;
+    const roll = Math.sin(Math.PI * ph) * 0.7 * sp * Math.PI / 180;
+
+    b.save();
+    b.translate(CX + swayX, CY + bobY);
+    b.rotate(roll);
+    b.translate(-CX, -CY);
+    drawScene(b, t);
+    b.restore();
+
+    // Fade in at the start.
+    ctx.save();
+    ctx.globalAlpha = clamp01(t / 0.25);
+
+    // Push into the screen: zoom blur and the screen's light flooding the view.
+    const push = clamp01((t - T_WALK) / (T_PUSH - T_WALK));
+    ctx.drawImage(buf, 0, 0);
+    if (push > 0) {
+      const a = 0.22 * push;
+      for (let i = 1; i <= 4; i++) {
+        const z = 1 + 0.035 * i * push;
+        ctx.globalAlpha = a;
+        ctx.drawImage(buf, CX - CX * z, CY - CY * z, W * z, H * z);
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(120,135,255,${0.75 * easeInCubic(push) + (t > T_PUSH ? 0.1 : 0)})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+
+    // Dissolve to the stream: the screen breaks up line by line, with a bright edge on each line.
+    if (t > T_PUSH) {
+      const band = 6;
+      ctx.save();
+      for (let y = 0; y < H; y += band) {
+        const start = T_PUSH + 0.05 + hash(y * 0.37) * 0.5;
+        const a = clamp01((t - start) / 0.3);
+        if (a <= 0) continue;
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = `rgba(0,0,0,${a})`;
+        ctx.fillRect(0, y, W, band);
+        if (a < 1) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = `rgba(200,210,255,${0.35 * (1 - a) * a * 4})`;
+          ctx.fillRect(0, y, W * (0.3 + hash(y) * 0.7), 1.5);
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  // ---- sound, built with Web Audio (also rendered offline into the .webm)
+  function noiseBuffer(ac, secs) {
+    const bf = ac.createBuffer(1, Math.floor(ac.sampleRate * secs), ac.sampleRate), ch = bf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = hash(i * 0.0173) * 2 - 1;
+    return bf;
+  }
+  function env(g, at, peak, a, d) {
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + a + d);
+  }
+  function scheduleSound(ac, out, t0) {
+    const nb = noiseBuffer(ac, 1.5);
+    // Footsteps on deck plating.
+    [0.2, 0.7, 1.2, 1.62].forEach((ts, i) => {
+      const at = t0 + ts, loud = i === 3 ? 0.55 : 0.85;
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.setValueAtTime(80, at); o.frequency.exponentialRampToValueAtTime(42, at + 0.12);
+      env(g, at, 0.6 * loud, 0.005, 0.14);
+      o.connect(g).connect(out); o.start(at); o.stop(at + 0.2);
+      const n = ac.createBufferSource(), lp = ac.createBiquadFilter(), ng = ac.createGain();
+      n.buffer = nb; lp.type = 'bandpass'; lp.frequency.value = 1800 + i * 150; lp.Q.value = 1.5;
+      env(ng, at, 0.35 * loud, 0.002, 0.05);
+      n.connect(lp).connect(ng).connect(out); n.start(at, i * 0.2, 0.1);
+    });
+    // Terminal hum, louder as we get close.
+    const hum = ac.createGain();
+    hum.gain.setValueAtTime(0.0001, t0);
+    hum.gain.exponentialRampToValueAtTime(0.05, t0 + 0.4);
+    hum.gain.exponentialRampToValueAtTime(0.11, t0 + T_WALK);
+    hum.gain.exponentialRampToValueAtTime(0.0001, t0 + T_PUSH + 0.3);
+    hum.connect(out);
+    for (const f of [110, 220.6, 331]) {
+      const o = ac.createOscillator();
+      o.type = f === 110 ? 'sine' : 'triangle';
+      o.frequency.value = f;
+      const g = ac.createGain(); g.gain.value = f === 110 ? 1 : 0.25;
+      o.connect(g).connect(hum); o.start(t0); o.stop(t0 + T_PUSH + 0.4);
+    }
+    // Terminal wake-up chirp on arrival.
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(out);
+    [[880, 0], [1320, 0.09], [1760, 0.18]].forEach(([f, dt]) => {
+      const o = ac.createOscillator(), g = ac.createGain(), at = t0 + T_WALK + dt;
+      o.type = 'square'; o.frequency.value = f;
+      env(g, at, 0.12, 0.005, 0.08);
+      o.connect(g).connect(lp); o.start(at); o.stop(at + 0.12);
+    });
+    // Whoosh into the screen, then a soft boom and shimmer as it dissolves.
+    const n = ac.createBufferSource(), bp = ac.createBiquadFilter(), ng = ac.createGain();
+    n.buffer = nb; bp.type = 'bandpass'; bp.Q.value = 3;
+    const ws = t0 + T_WALK + 0.05, we = t0 + T_PUSH;
+    bp.frequency.setValueAtTime(300, ws); bp.frequency.exponentialRampToValueAtTime(5200, we);
+    ng.gain.setValueAtTime(0.0001, ws); ng.gain.exponentialRampToValueAtTime(0.55, we - 0.05); ng.gain.exponentialRampToValueAtTime(0.0001, we + 0.25);
+    n.connect(bp).connect(ng).connect(out); n.start(ws); n.stop(we + 0.3);
+    const bo = ac.createOscillator(), bg = ac.createGain();
+    bo.frequency.setValueAtTime(110, we); bo.frequency.exponentialRampToValueAtTime(38, we + 0.7);
+    env(bg, we, 0.7, 0.01, 0.75);
+    bo.connect(bg).connect(out); bo.start(we); bo.stop(we + 0.9);
+    [1568, 2093, 2637].forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), at = we + 0.05 + i * 0.07;
+      o.type = 'triangle'; o.frequency.value = f;
+      env(g, at, 0.07, 0.01, 0.6);
+      o.connect(g).connect(out); o.start(at); o.stop(at + 0.7);
+    });
+  }
+
+  let audio = null;
+  function playSound() {
+    if (!opt.sound || opt.volume <= 0) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+      const g = audio.createGain();
+      g.gain.value = opt.volume;
+      g.connect(audio.destination);
+      scheduleSound(audio, g, audio.currentTime + 0.03);
+    } catch (e) { /* no audio */ }
+  }
+
+  // Offline render of the sound, used to build the .webm stinger: returns [left, right] samples.
+  window.renderSound = async (rate) => {
+    const off = new OfflineAudioContext(2, Math.ceil(rate * DURATION), rate);
+    const g = off.createGain(); g.gain.value = 0.9; g.connect(off.destination);
+    scheduleSound(off, g, 0);
+    const out = await off.startRendering();
+    return [Array.from(out.getChannelData(0)), Array.from(out.getChannelData(1))];
+  };
+  window.renderAt = renderAt;
+  window.ASOP = { DURATION, T_PUSH, T_END };
+
+  // ---- playback
+  let start = -1;
+  function play() {
+    start = performance.now();
+    playSound();
+  }
+  function frame(now) {
+    if (start >= 0) {
+      const t = (now - start) / 1000;
+      renderAt(t);
+      if (t >= T_END) {
+        start = -1;
+        ctx.clearRect(0, 0, W, H);
+        if (opt.loop) setTimeout(play, 1200);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function connectStreamerbot() {
+    let ws;
+    try { ws = new WebSocket(`ws://${opt.host}:${opt.port}/`); } catch (e) { setTimeout(connectStreamerbot, 3000); return; }
+    ws.onopen = () => ws.send(JSON.stringify({ request: 'Subscribe', id: 'asop-subscribe', events: { General: ['Custom'] } }));
+    ws.onmessage = (m) => {
+      let msg;
+      try { msg = JSON.parse(m.data); } catch (e) { return; }
+      if (!msg || msg.id) return;  // replies to our own requests
+      if (JSON.stringify(msg.data !== undefined ? msg.data : msg).toLowerCase().includes(opt.trigger)) play();
+    };
+    ws.onclose = () => setTimeout(connectStreamerbot, 3000);
+    ws.onerror = () => ws.close();
+  }
+
+  function ready() {
+    if (flag('render')) return;  // frames are driven by renderAt() when building the video
+    requestAnimationFrame(frame);
+    if (opt.streamerbot) connectStreamerbot();
+    else play();
+    // Browsers block sound until the page is clicked; OBS doesn't. Click to hear it while previewing.
+    document.addEventListener('click', () => { if (audio && audio.state === 'suspended') audio.resume(); if (start < 0) play(); });
+  }
+})();
+</script>
+</body>
+</html>
