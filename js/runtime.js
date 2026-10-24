@@ -77,7 +77,7 @@ function OverlayRuntime() {
       { key: 'outlineColor', label: 'Outline color', type: 'color', def: '#000000' },
     ],
     shape: [
-      { key: 'kind', label: 'Shape', type: 'select', def: 'panel', options: [['panel', 'HUD panel'], ['rect', 'Rectangle'], ['circle', 'Circle / ellipse'], ['hex', 'Hexagon'], ['brackets', 'Corner brackets'], ['ring', 'Dashed ring'], ['line', 'Line']] },
+      { key: 'kind', label: 'Shape', type: 'select', def: 'panel', options: [['panel', 'HUD panel'], ['rect', 'Rectangle'], ['circle', 'Circle / ellipse'], ['hex', 'Hexagon'], ['brackets', 'Corner brackets'], ['ring', 'Dashed ring'], ['line', 'Line'], ['sparkle', 'Sparkle (wink glint)']] },
       { key: 'width', label: 'Width', type: 'num', anim: true, def: 400, step: 1, min: 0 },
       { key: 'height', label: 'Height', type: 'num', anim: true, def: 160, step: 1, min: 0 },
       { key: 'fill', label: 'Fill color', type: 'color', def: '#06121f' },
@@ -87,6 +87,17 @@ function OverlayRuntime() {
       { key: 'reveal', label: 'Wipe reveal', type: 'num', anim: true, def: 1, step: 0.01, min: 0, max: 1 },
       { key: 'spin', label: 'Spin (deg/sec)', type: 'num', def: 0, step: 1 },
       { key: 'dash', label: 'Dash length', type: 'num', def: 14, step: 1, min: 1 },
+    ],
+    emote: [
+      { key: 'expression', label: 'Expression', type: 'select', def: 'wink', options: [['wink', 'Wink'], ['pog', 'Pog (jaw drop)'], ['happy', 'Happy (tongue wag)'], ['love', 'Heart eyes'], ['cool', 'Cool visor']] },
+      { key: 'width', label: 'Width', type: 'num', anim: true, def: 170, step: 1, min: 0 },
+      { key: 'height', label: 'Height', type: 'num', anim: true, def: 170, step: 1, min: 0 },
+      { key: 'fur', label: 'Fur color', type: 'color', def: '#d9a066' },
+      { key: 'ear', label: 'Ear color', type: 'color', def: '#8a5a2b' },
+      { key: 'muzzle', label: 'Muzzle color', type: 'color', def: '#f6e3c4' },
+      { key: 'helmet', label: 'Space helmet', type: 'bool', def: false },
+      { key: 'accent', label: 'Helmet trim', type: 'color', def: '#3fd8ff' },
+      { key: 'speed', label: 'Animation speed', type: 'num', def: 1, step: 0.1, min: 0 },
     ],
     particles: [
       { key: 'kind', label: 'Effect', type: 'select', def: 'warp', options: [['warp', 'Quantum warp streaks'], ['stars', 'Starfield'], ['sparks', 'Spark burst'], ['paws', 'Floating paw prints'], ['embers', 'Rising embers']] },
@@ -162,7 +173,12 @@ function OverlayRuntime() {
   }
 
   function substitute(str, vars) {
-    return String(str == null ? '' : str).replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? vars[k] : m));
+    // {bits} inserts a value; {bits:bit|bits} picks a word by whether the value is 1.
+    return String(str == null ? '' : str).replace(/\{(\w+)(?::([^|}]*)\|([^}]*))?\}/g, (m, k, one, many) => {
+      const v = vars && vars[k] != null ? vars[k] : null;
+      if (one !== undefined) return Number(v) === 1 ? one : many;
+      return v != null ? v : m;
+    });
   }
 
   function hexToRgba(hex, a) {
@@ -227,17 +243,36 @@ function OverlayRuntime() {
     else { ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); }
   }
 
+  // Four-point twinkle star.
+  function sparklePts(w, h) {
+    const pts = [];
+    for (let i = 0; i < 8; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 4, r = i % 2 ? 0.14 : 0.5;
+      pts.push([Math.cos(a) * w * r, Math.sin(a) * h * r]);
+    }
+    return pts;
+  }
+
   function panelPts(w, h) {
     const c = Math.max(0, Math.min(22, h / 3, w / 3));
     return [[-w / 2 + c, -h / 2], [w / 2, -h / 2], [w / 2, h / 2 - c], [w / 2 - c, h / 2], [-w / 2, h / 2], [-w / 2, -h / 2 + c]];
   }
 
   // ---------------------------------------------------------------- layer renderers
-  function drawImage(ctx, v, env, layer) {
+  function animFrame(img, lt) {
+    const a = img && img._anim;
+    if (!a) return null;
+    let ms = (lt * 1000) % a.total;
+    for (let i = 0; i < a.frames.length; i++) { if (ms < a.durs[i]) return a.frames[i]; ms -= a.durs[i]; }
+    return a.frames[a.frames.length - 1];
+  }
+
+  function drawImage(ctx, v, env, layer, t) {
     const w = Math.max(0, v.width), h = Math.max(0, v.height);
     if (w < 1 || h < 1) return;
-    const img = env.images && env.images[v.asset];
+    let img = env.images && env.images[v.asset];
     const ready = img && img.complete && img.naturalWidth > 0;
+    if (ready) img = animFrame(img, Math.max(0, t - layer.inPoint)) || img;
     if (v.glow > 0) {
       // Glow halo behind the masked image.
       maskPath(ctx, v.mask, w, h);
@@ -249,7 +284,7 @@ function OverlayRuntime() {
     maskPath(ctx, v.mask, w, h);
     ctx.clip();
     if (ready) {
-      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
       const s = v.fit === 'contain' ? Math.min(w / iw, h / ih) : Math.max(w / iw, h / ih);
       if (v.fit === 'contain') { ctx.fillStyle = '#06121f'; ctx.fillRect(-w / 2, -h / 2, w, h); }
       ctx.drawImage(img, -iw * s / 2, -ih * s / 2, iw * s, ih * s);
@@ -374,13 +409,14 @@ function OverlayRuntime() {
     if (kind === 'rect') { ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); }
     else if (kind === 'panel') polyPath(ctx, panelPts(w, h));
     else if (kind === 'hex') polyPath(ctx, hexPts(w, h));
+    else if (kind === 'sparkle') polyPath(ctx, sparklePts(w, h));
     else if (kind === 'circle') {
       ctx.beginPath();
       if (reveal < 1) { ctx.moveTo(0, 0); ctx.ellipse(0, 0, w / 2, h / 2, 0, -Math.PI / 2, endA); ctx.closePath(); }
       else ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
     }
 
-    if (kind === 'rect' || kind === 'panel' || kind === 'hex' || kind === 'circle') {
+    if (kind === 'rect' || kind === 'panel' || kind === 'hex' || kind === 'circle' || kind === 'sparkle') {
       if (fillIt) ctx.fill();
       if (sw > 0) {
         if (fillIt) ctx.shadowBlur = 0;
@@ -506,6 +542,184 @@ function OverlayRuntime() {
     ctx.globalAlpha = base;
   }
 
+  // ---------------------------------------------------------------- cartoon dog emote
+  // A hand-drawn dog face that animates by itself: winks, jaw-drop "pog", tongue wag, heart eyes, visor.
+  function heartPath(ctx, x, y, r) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + r * 0.9);
+    ctx.bezierCurveTo(x - r * 1.6, y - r * 0.2, x - r * 0.7, y - r * 1.3, x, y - r * 0.45);
+    ctx.bezierCurveTo(x + r * 0.7, y - r * 1.3, x + r * 1.6, y - r * 0.2, x, y + r * 0.9);
+    ctx.closePath();
+  }
+
+  function drawEmote(ctx, v, t, layer) {
+    const s = Math.min(v.width, v.height);
+    if (s < 4) return;
+    const lt = Math.max(0, t - layer.inPoint) * (v.speed == null ? 1 : v.speed);
+    const ex = v.expression;
+    const dark = '#2b1a12';
+    const ell = (x, y, rx, ry, rot) => { ctx.beginPath(); ctx.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), rot || 0, 0, Math.PI * 2); };
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+    // Whole-head motion: gentle bob and tilt; pog adds a quick shocked shake.
+    let jaw = 0;
+    if (ex === 'pog') {
+      const p = clamp01((lt - 0.15) / 0.35);
+      jaw = EASES.backOut(p) * (1 + 0.05 * Math.sin(lt * 14));
+      if (p > 0 && p < 1) ctx.translate(Math.sin(lt * 60) * s * 0.012, 0);
+    }
+    ctx.translate(0, Math.sin(lt * 4) * s * 0.015);
+    ctx.rotate(Math.sin(lt * 2.2) * 0.07);
+
+    if (v.helmet) {
+      // Collar of the space suit.
+      ctx.fillStyle = '#2a3442';
+      ctx.save(); ctx.translate(0, s * 0.42); roundRectPath(ctx, s * 0.78, s * 0.2, s * 0.08); ctx.fill(); ctx.restore();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = v.accent;
+      ctx.fillRect(-s * 0.36, s * 0.4, s * 0.72, s * 0.03);
+    }
+
+    // Head (carries the layer glow), then no more shadows.
+    ctx.fillStyle = v.fur;
+    ell(0, 0, s * 0.4, s * 0.36);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Floppy ears that flap.
+    const flap = Math.sin(lt * 6) * 0.1 + (ex === 'pog' ? -0.35 * jaw : 0);
+    ctx.fillStyle = v.ear;
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(side * s * 0.34, -s * 0.2);
+      ctx.rotate(side * (0.28 + flap));
+      ell(0, s * 0.2, s * 0.12, s * 0.25);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Muzzle and blush.
+    ctx.fillStyle = v.muzzle;
+    ell(0, s * 0.15, s * 0.23, s * 0.17);
+    ctx.fill();
+    if (ex === 'wink' || ex === 'love' || ex === 'happy') {
+      ctx.fillStyle = 'rgba(255,120,150,0.35)';
+      ell(-s * 0.25, s * 0.08, s * 0.06, s * 0.035); ctx.fill();
+      ell(s * 0.25, s * 0.08, s * 0.06, s * 0.035); ctx.fill();
+    }
+
+    // Eyes.
+    const eyX = s * 0.15, eyY = -s * 0.06, er = s * 0.052;
+    const blinkCycle = lt % 3.2;
+    const blink = blinkCycle > 3.0 ? 1 - Math.abs(blinkCycle - 3.1) / 0.1 : 0;
+    const dotEye = (x, open) => {
+      if (open < 0.25) {
+        ctx.strokeStyle = dark; ctx.lineWidth = s * 0.024; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(x, eyY + er * 0.5, er, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+        return;
+      }
+      ctx.fillStyle = dark;
+      ell(x, eyY, er * 0.9, er * 1.1 * open); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ell(x - er * 0.3, eyY - er * 0.4 * open, er * 0.3, er * 0.3 * open); ctx.fill();
+    };
+    let wink = 0;
+    if (ex === 'wink') {
+      const ph = lt % 2.6;
+      wink = ph > 0.5 && ph < 1.2 ? Math.sin((ph - 0.5) / 0.7 * Math.PI) : 0;
+      dotEye(-eyX, 1 - blink);
+      dotEye(eyX, 1 - Math.min(1, wink * 1.6));
+    } else if (ex === 'pog') {
+      const big = 1 + 0.45 * jaw;
+      for (const x of [-eyX, eyX]) {
+        ctx.fillStyle = '#fff';
+        ell(x, eyY - s * 0.01, er * 1.25 * big, er * 1.35 * big); ctx.fill();
+        ctx.strokeStyle = dark; ctx.lineWidth = s * 0.014; ctx.stroke();
+        ctx.fillStyle = dark;
+        ell(x, eyY, er * 0.45, er * 0.5); ctx.fill();
+      }
+      // Raised eyebrows.
+      ctx.strokeStyle = dark; ctx.lineWidth = s * 0.022; ctx.lineCap = 'round';
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(side * (eyX - er), eyY - er * 2.1 * big);
+        ctx.quadraticCurveTo(side * eyX, eyY - er * 2.8 * big, side * (eyX + er), eyY - er * 2.2 * big);
+        ctx.stroke();
+      }
+    } else if (ex === 'happy') {
+      ctx.strokeStyle = dark; ctx.lineWidth = s * 0.026; ctx.lineCap = 'round';
+      for (const x of [-eyX, eyX]) { ctx.beginPath(); ctx.arc(x, eyY + er * 0.5, er, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
+    } else if (ex === 'love') {
+      const pulse = 1 + 0.18 * Math.max(0, Math.sin(lt * 9));
+      ctx.fillStyle = '#ff3d6e';
+      for (const x of [-eyX, eyX]) { heartPath(ctx, x, eyY, er * 1.15 * pulse); ctx.fill(); }
+    } else if (ex === 'cool') {
+      ctx.fillStyle = '#0b1622';
+      ctx.save(); ctx.translate(0, eyY); roundRectPath(ctx, s * 0.52, s * 0.13, s * 0.05); ctx.fill();
+      ctx.clip();
+      const gx = ((lt * 0.6) % 1.6 - 0.3) * s * 0.6 - s * 0.3;
+      const g = ctx.createLinearGradient(gx - s * 0.08, 0, gx + s * 0.08, 0);
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, v.accent); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.globalAlpha *= 0.8;
+      ctx.fillRect(-s * 0.3, -s * 0.1, s * 0.6, s * 0.2);
+      ctx.restore();
+    }
+
+    // Nose.
+    ctx.fillStyle = dark;
+    ell(0, s * 0.06, s * 0.055, s * 0.038); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ell(-s * 0.015, s * 0.05, s * 0.016, s * 0.01); ctx.fill();
+
+    // Mouth.
+    ctx.strokeStyle = dark; ctx.lineWidth = s * 0.018; ctx.lineCap = 'round';
+    if (ex === 'pog') {
+      ctx.fillStyle = '#5a0f1a';
+      ell(0, s * 0.19 + jaw * s * 0.03, s * 0.06 * (0.6 + 0.5 * jaw), s * 0.03 + s * 0.075 * jaw); ctx.fill();
+      ctx.fillStyle = '#ff7a8c';
+      ell(0, s * 0.22 + jaw * s * 0.07, s * 0.045 * (0.5 + 0.5 * jaw), s * 0.025 * jaw); ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.09); ctx.lineTo(0, s * 0.13);
+      ctx.arc(-s * 0.045, s * 0.13, s * 0.045, 0, Math.PI * 0.85);
+      ctx.moveTo(0, s * 0.13);
+      ctx.arc(s * 0.045, s * 0.13, s * 0.045, Math.PI, Math.PI * 0.15, true);
+      ctx.stroke();
+      if (ex !== 'cool') {
+        const wag = ex === 'happy' ? Math.sin(lt * 10) * 0.3 : Math.sin(lt * 3) * 0.08;
+        ctx.save();
+        ctx.translate(0, s * 0.16);
+        ctx.rotate(wag);
+        ctx.fillStyle = '#ff6f8a';
+        ctx.translate(0, ex === 'happy' ? s * 0.07 : s * 0.035);
+        roundRectPath(ctx, s * 0.075, ex === 'happy' ? s * 0.16 : s * 0.09, s * 0.035);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Wink sparkle.
+    if (wink > 0.3) {
+      ctx.save();
+      ctx.translate(eyX + s * 0.13, eyY - s * 0.13);
+      ctx.rotate(lt * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = v.accent; ctx.shadowBlur = s * 0.1;
+      polyPath(ctx, sparklePts(s * 0.16 * wink, s * 0.16 * wink));
+      ctx.fill();
+      ctx.restore();
+    }
+
+    if (v.helmet) {
+      // Glass bubble with a reflection.
+      ctx.fillStyle = 'rgba(160,225,255,0.10)';
+      ell(0, 0, s * 0.52, s * 0.5); ctx.fill();
+      ctx.strokeStyle = 'rgba(200,240,255,0.85)'; ctx.lineWidth = s * 0.022; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = s * 0.03;
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.43, Math.PI * 1.08, Math.PI * 1.38); ctx.stroke();
+    }
+  }
+
   // Applies a layer's transform/compositing to ctx. Returns evaluated values, or null if invisible.
   function applyLayer(ctx, layer, t) {
     const v = evalLayer(layer, t);
@@ -540,7 +754,8 @@ function OverlayRuntime() {
       ctx.save();
       const v = applyLayer(ctx, layer, t);
       if (v) {
-        if (layer.type === 'image') drawImage(ctx, v, env, layer);
+        if (layer.type === 'image') drawImage(ctx, v, env, layer, t);
+        else if (layer.type === 'emote') drawEmote(ctx, v, t, layer);
         else if (layer.type === 'text') drawText(ctx, v, env);
         else if (layer.type === 'shape') drawShape(ctx, v, t, layer);
         else if (layer.type === 'particles') drawParticles(ctx, v, t, layer);
@@ -1017,6 +1232,34 @@ function OverlayRuntime() {
   }
 
   // ---------------------------------------------------------------- image loading
+  function isAnimatedData(data) {
+    if (!data || !data.startsWith('data:image/')) return false;
+    if (data.startsWith('data:image/gif')) return true;
+    try {
+      const head = atob(data.slice(data.indexOf(',') + 1, data.indexOf(',') + 1 + 4000));
+      return (data.startsWith('data:image/webp') && head.includes('ANIM')) || (data.startsWith('data:image/png') && head.includes('acTL'));
+    } catch (e) { return false; }
+  }
+
+  async function decodeAnimation(img, data) {
+    if (typeof ImageDecoder === 'undefined' || !isAnimatedData(data)) return;
+    try {
+      const type = data.slice(5, data.indexOf(';'));
+      const dec = new ImageDecoder({ data: await (await fetch(data)).arrayBuffer(), type });
+      await dec.tracks.ready;
+      const n = Math.min(240, dec.tracks.selectedTrack ? dec.tracks.selectedTrack.frameCount : 1);
+      if (n < 2) return;
+      const frames = [], durs = [];
+      for (let i = 0; i < n; i++) {
+        const { image } = await dec.decode({ frameIndex: i });
+        durs.push(Math.max(20, (image.duration || 100000) / 1000));
+        frames.push(await createImageBitmap(image));
+        image.close();
+      }
+      img._anim = { frames, durs, total: durs.reduce((a, b) => a + b, 0) };
+    } catch (e) { /* plays as a still image */ }
+  }
+
   function loadImages(assets, cache) {
     cache = cache || {};
     const jobs = [];
@@ -1027,7 +1270,7 @@ function OverlayRuntime() {
       if (cache[id] && cache[id]._src === a.data) continue;
       const img = new Image();
       img._src = a.data;
-      jobs.push(new Promise((res) => { img.onload = img.onerror = res; }));
+      jobs.push(new Promise((res) => { img.onload = () => decodeAnimation(img, a.data).then(res); img.onerror = res; }));
       img.src = a.data;
       cache[id] = img;
     }
@@ -1128,6 +1371,6 @@ function OverlayRuntime() {
   return {
     EASES, EASE_LABELS, FONTS, SCHEMA, ALERT_TYPES, SAMPLE_VARS, SYNTHS, SYNTH_LABELS,
     uid, makeLayer, fieldDef, evalProp, evalLayer, substitute, render, layerBounds, layerActive,
-    applyAlertTransform, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
+    applyAlertTransform, isAnimatedData, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
   };
 }

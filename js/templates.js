@@ -2,14 +2,16 @@
  * Built-in "Quantum Paws" templates: Star Citizen-style HUD alerts starring the three dogs.
  * Each alert type gets its own color, headline and crew line-up.
  */
+// Text supports {variables} and plurals: {bits:bit|bits} reads "bit" when bits is 1.
+const TEMPLATE_VERSION = 2;
 const THEMES = {
-  follow: { color: '#3fd8ff', dogs: ['dog1'], header: 'INCOMING HAIL', title: '{user}', sub: 'locked onto the signal. Welcome aboard!', synth: 'chirp' },
-  sub: { color: '#ffc94a', dogs: ['dog2'], header: 'NEW CREW MEMBER', title: '{user}', sub: 'enlisted with the Org  //  {tier}', synth: 'quantum' },
-  resub: { color: '#ff9f43', dogs: ['dog2'], header: 'VETERAN PILOT', title: '{user}', sub: 're-upped for {months} months of service', message: '"{message}"', synth: 'quantum' },
-  giftsub: { color: '#5cffb0', dogs: ['dog3'], header: 'SUPPLY DROP', title: '{user}', sub: 'gifted a sub to {recipient}!', synth: 'chirp' },
-  giftbomb: { color: '#ff5ce1', dogs: ['dog1', 'dog2', 'dog3'], header: 'FLEET DEPLOYED', title: '{user}', sub: 'launched {count} gift subs into the verse!', synth: 'quantum' },
-  cheer: { color: '#b07bff', dogs: ['dog1'], header: 'CREDIT TRANSFER RECEIVED', title: '{user}', sub: 'transferred {bits} bits to the crew', message: '"{message}"', synth: 'hail' },
-  raid: { color: '#ff4a5a', dogs: ['dog1', 'dog2', 'dog3'], header: '!! QUANTUM INTERDICTION !!', title: '{user}', sub: 'is raiding with {viewers} pilots!', synth: 'alarm' },
+  follow: { color: '#3fd8ff', dogs: ['dog1'], emote: 'wink', header: 'NEW RECRUIT', title: '{user}', sub: 'just joined the pack. Welcome aboard!', synth: 'chirp' },
+  sub: { color: '#ffc94a', dogs: ['dog2'], emote: 'pog', header: 'WELCOME TO THE BIG DOGS', title: '{user}', sub: 'just subscribed  \u2022  {tier}', synth: 'quantum' },
+  resub: { color: '#ff9f43', dogs: ['dog2'], emote: 'love', header: 'STILL ONE OF THE BIG DOGS', title: '{user}', sub: 'subscribed for {months} {months:month|months}!', message: '{message}', synth: 'quantum' },
+  giftsub: { color: '#5cffb0', dogs: ['dog3'], emote: 'happy', header: 'GIFT INCOMING', title: '{user}', sub: 'gifted a sub to {recipient}!', synth: 'chirp' },
+  giftbomb: { color: '#ff5ce1', dogs: ['dog1', 'dog2', 'dog3'], emote: 'pog', header: 'SUPPLY DROP', title: '{user}', sub: 'gifted {count} {count:sub|subs} to the pack!', synth: 'quantum' },
+  cheer: { color: '#b07bff', dogs: ['dog1'], emote: 'wink', header: 'BITS INCOMING', title: '{user}', sub: 'cheered {bits} {bits:bit|bits}. Thank you!', message: '{message}', synth: 'hail' },
+  raid: { color: '#ff4a5a', dogs: ['dog1', 'dog2', 'dog3'], emote: 'cool', helmet: true, header: 'RAID INCOMING', title: '{user}', sub: "brought {viewers} {viewers:pilot|pilots}. Let's throw some ass!", synth: 'alarm' },
 };
 
 function makeTemplate(RT, type) {
@@ -56,17 +58,33 @@ function makeTemplate(RT, type) {
     text: th.header, font: 'Share Tech Mono', size: 24, weight: '400', color: C, x: TX, y: ty.h, align, fit: FIT, tracking: 5, glow: 10, glowColor: C,
   }, { reveal: [k(1.7, 0, 'linear'), k(2.15, 1)], opacity: fadeOut(D - 0.9, D - 0.5) }));
 
+  // ---- animated cartoon dog emote, peeking over the panel's top-right corner
+  const E = multi ? { x: P.x + P.w / 2 - 10, y: P.y - P.h / 2 - 14, s: 165 } : { x: P.x + P.w / 2 - 25, y: P.y - P.h / 2 - 22, s: 185 };
+  layers.push(L('emote', 'Dog emote', 2.3, D - 0.4, {
+    expression: th.emote, helmet: !!th.helmet, accent: C, x: E.x, y: E.y, width: E.s, height: E.s, glow: 18, glowColor: C,
+  }, {
+    scale: [k(2.3, 0, 'backOut'), k(2.75, 1), k(D - 0.9, 1, 'backIn'), k(D - 0.55, 0)],
+    rotation: [k(2.3, -35, 'backOut'), k(2.8, 0)],
+  }));
+
   // ---- the crew (dogs)
   const dogXs = multi ? [770, 960, 1150] : [585];
   const dogY = multi ? 190 : 300;
   const dogSize = multi ? 150 : 230;
   th.dogs.forEach((dog, i) => {
     const t0 = 1.25 + i * 0.15;
+    layers.push(L('shape', 'Wink glint ' + dog.slice(3), 3.2 + i * 0.2, 3.9 + i * 0.2, {
+      kind: 'sparkle', x: dogXs[i] + dogSize * 0.3, y: dogY - dogSize * 0.3, width: dogSize * 0.26, height: dogSize * 0.26,
+      fill: '#ffffff', fillAlpha: 1, strokeWidth: 0, glow: 22, glowColor: C, blend: 'lighter',
+    }, {
+      scale: [k(3.2 + i * 0.2, 0, 'backOut'), k(3.45 + i * 0.2, 1, 'easeIn'), k(3.9 + i * 0.2, 0)],
+      rotation: [k(3.2 + i * 0.2, 0, 'linear'), k(3.9 + i * 0.2, 120)],
+    }));
     layers.push(L('image', 'Dog ' + dog.slice(3), t0, D - 0.3, {
       asset: dog, x: dogXs[i], y: dogY, width: dogSize, height: dogSize, mask: 'circle', border: 4, borderColor: C, glow: 26, glowColor: C,
     }, {
-      scale: [k(t0, 0, 'backOut'), k(t0 + 0.5, 1), k(D - 0.8, 1, 'backIn'), k(D - 0.4, 0)],
-      rotation: [k(t0, -25), k(t0 + 0.6, 0)],
+      scale: [k(t0, 0, 'backOut'), k(t0 + 0.5, 1, 'linear'), k(4.3 + i * 0.2, 1, 'easeOut'), k(4.45 + i * 0.2, 1.1, 'backOut'), k(4.75 + i * 0.2, 1, 'linear'), k(D - 0.8, 1, 'backIn'), k(D - 0.4, 0)],
+      rotation: [k(t0, -25), k(t0 + 0.6, 0, 'linear'), k(3.0 + i * 0.2, 0, 'easeInOut'), k(3.3 + i * 0.2, -10, 'easeInOut'), k(3.7 + i * 0.2, 8, 'easeInOut'), k(4.0 + i * 0.2, 0)],
     }));
     layers.push(L('shape', 'Dog ring ' + dog.slice(3), t0 + 0.1, D - 0.3, {
       kind: 'ring', x: dogXs[i], y: dogY, width: dogSize + 44, height: dogSize + 44, stroke: C, strokeWidth: 3, spin: i % 2 ? -40 : 40, dash: 18, glow: 12, glowColor: C,
@@ -121,6 +139,7 @@ function makeProject(RT) {
   for (const a of RT.ALERT_TYPES) alerts[a.id] = makeTemplate(RT, a.id);
   return {
     version: 1,
+    templateVersion: TEMPLATE_VERSION,
     width: 1920,
     height: 1080,
     assets: {

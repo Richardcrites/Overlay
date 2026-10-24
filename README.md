@@ -21,8 +21,11 @@ A small After Effects-style editor for building **animated Twitch alerts** that 
   HUD panels, corner brackets, dashed rings, and particle effects (quantum warp, starfield, sparks, paw prints, embers).
 - **Sound:** built-in sci-fi sounds (quantum jump, comm chirp, incoming hail, red alert klaxon), or upload your own,
   like **recordings of your dogs barking**.
+- **Animated dog emotes:** a cartoon dog face layer that animates by itself. It can wink, do a jaw-drop "pog",
+  wag its tongue, show heart eyes, or wear a cool visor, with an optional space helmet. You can set the fur, ear and muzzle colors to match your dogs.
+- **Animated GIFs / WebPs:** upload your own animated emotes and they play in the alert.
 - **Variables** in text: `{user}`, `{months}`, `{tier}`, `{recipient}`, `{count}`, `{bits}`, `{viewers}`, `{message}`.
-  Long usernames shrink to fit the panel.
+  Long usernames shrink to fit the panel. Plurals: `{bits:bit|bits}` reads "1 bit" / "500 bits".
 
 ## Quick start
 

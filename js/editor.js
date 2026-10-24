@@ -5,7 +5,7 @@
   const RT = OverlayRuntime();
   const W = 1920, H = 1080;
   const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Audiowide&family=Bebas+Neue&family=Exo+2:ital,wght@0,400;0,600;0,700;0,900;1,600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Share+Tech+Mono&display=swap';
-  const TYPE_ICON = { image: '\u{1F415}', text: 'T', shape: '▢', particles: '✨' };
+  const TYPE_ICON = { image: '\u{1F415}', text: 'T', shape: '▢', particles: '✨', emote: '\u{1F436}' };
 
   // ---------------------------------------------------------------- helpers
   const $ = (s, r) => (r || document).querySelector(s);
@@ -375,9 +375,11 @@
     if (!file || !file.type.startsWith('image/')) { toast('That file is not an image'); return; }
     let data = await readDataUrl(file);
     const img = await loadImg(data);
+    const animated = RT.isAnimatedData(data);
+    if (animated && file.size > 2e6) toast('Big animated image: emote-sized GIFs (under ~500 KB) keep the overlay light', 5000);
     const max = 1024;
     const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
-    if (s < 1 || file.size > 1.5e6) {
+    if (!animated && (s < 1 || file.size > 1.5e6)) {
       const c = document.createElement('canvas');
       c.width = Math.round(img.naturalWidth * s);
       c.height = Math.round(img.naturalHeight * s);
@@ -562,7 +564,7 @@
     const fields = RT.SCHEMA[L.type];
     const commonKeys = new Set(['x', 'y', 'scale', 'rotation', 'opacity', 'blur', 'glow', 'glowColor', 'blend']);
     box.append(sec('Transform & effects', fields.filter((f) => commonKeys.has(f.key)).map((f) => propRow(L, f))));
-    box.append(sec({ image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles' }[L.type], fields.filter((f) => !commonKeys.has(f.key)).map((f) => propRow(L, f))));
+    box.append(sec({ image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote' }[L.type], fields.filter((f) => !commonKeys.has(f.key)).map((f) => propRow(L, f))));
 
     const sk = S.selKey;
     if (sk && sk.layerId === L.id) {
@@ -694,9 +696,10 @@
       text: { text: '{user}', x: 960, y: 540, glow: 14, glowColor: '#3fd8ff' },
       shape: { kind: 'panel', x: 960, y: 540, width: 600, height: 160 },
       particles: { kind: 'stars', x: 960, y: 540, count: 120 },
+      emote: { expression: 'wink', x: 960, y: 540, glow: 14 },
     }[type];
     const n = al.layers.filter((l) => l.type === type).length + 1;
-    const name = { image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles' }[type] + ' ' + n;
+    const name = { image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote' }[type] + ' ' + n;
     const L = RT.makeLayer(type, name, defaults, { inPoint: 0, outPoint: al.duration });
     const idx = S.sel ? al.layers.findIndex((l) => l.id === S.sel) : 0;
     al.layers.splice(Math.max(0, idx), 0, L);
@@ -947,6 +950,7 @@
   // Dog photos only ever show at ~250px, so shrink them to keep the exported code small.
   // Dog photos only ever show at ~250px, so shrink and re-encode them to keep the exported code small.
   async function compactImage(data, max) {
+    if (RT.isAnimatedData(data)) return data;
     try {
       const img = await loadImg(data);
       const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
@@ -1304,6 +1308,25 @@
     requestAnimationFrame(loop);
     if (back) { openExport(); toast('Connected to Twitch'); }
     else if (!stored) toast('Welcome! Start by uploading photos of your 3 dogs on the left.', 6000);
+    else if ((P.templateVersion || 1) < TEMPLATE_VERSION) setTimeout(offerTemplateUpgrade, 600);
+  }
+
+  function offerTemplateUpgrade() {
+    const yes = confirm('New look for your alerts: animated dog emotes (wink, pog, heart eyes...), dogs that tilt and bounce, and cleaner wording.\n\n' +
+      'Update all 7 alerts now? Your dog photos, names, sounds and settings are kept. Custom layer edits are replaced (Ctrl+Z undoes it).');
+    P.templateVersion = TEMPLATE_VERSION;
+    scheduleSave();
+    if (!yes) return;
+    for (const a of RT.ALERT_TYPES) {
+      const old = P.alerts[a.id];
+      const fresh = makeTemplate(RT, a.id);
+      if (old) { fresh.enabled = old.enabled; fresh.sound = old.sound; fresh.offset = old.offset; }
+      P.alerts[a.id] = fresh;
+    }
+    S.sel = null;
+    S.selKey = null;
+    commit();
+    toast('Alerts updated. Remember to export again.', 5000);
   }
   init();
 })();
