@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASOP Transition</title>
 <!--
-  ASOP TRANSITION: walk up to the Goopa Troopas ship terminal, push into the screen, dissolve to the stream.
+  ASOP TRANSITION: walk up to the Goopa Troopas ship terminal, push in on the masked crew member, dissolve to the stream.
 
   Best as an OBS Stinger: use asop-transition.webm (rendered from this page). See README.md in this folder.
   This page also works as a Browser source (1920 x 1080) that plays when shown.
@@ -35,14 +35,17 @@
 
   // ---- timing (seconds)
   const T_WALK = 1.75;      // arrive at the terminal
-  const T_PUSH = 2.45;      // screen fills the view; this is the stinger "transition point"
-  const T_END = 3.3;        // fully dissolved to the stream
-  const DURATION = 3.4;
+  const T_PUSH = 2.45;      // zoomed in on the character; the screen fills the view (stinger "transition point")
+  const T_HOLD = 2.9;       // close-up holds until here, then dissolves
+  const T_END = 3.75;       // fully dissolved to the stream
+  const DURATION = 3.85;
 
   // ---- the terminal image (asop.webp, 1140 x 380)
   const IMG_W = 1140, IMG_H = 380;
   const SCREEN = { x: 72, y: 62, w: 1000, h: 282 };          // the glowing blue screen, in image pixels
   const FOCUS = { x: SCREEN.x + SCREEN.w / 2, y: SCREEN.y + SCREEN.h / 2 };
+  const CHAR = { x: 378, y: 180 };                            // the masked crew member with the scarf: the push ends on him
+  const CHAR_SCALE = 12;                                      // image scale of the close-up (his head and scarf fill the view)
   const IMG_SCALE_AT_1 = 1800 / IMG_W;                        // image scale when the camera is 1 unit from the wall
 
   // ---- corridor geometry (screen pixels at 1 unit away)
@@ -71,13 +74,24 @@
   const lerp = (a, b, p) => a + (b - a) * p;
   const easeInOutSine = (p) => -(Math.cos(Math.PI * p) - 1) / 2;
   const easeInCubic = (p) => p * p * p;
+  const easeInOutCubic = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
   const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
   // ---- camera: distance to the terminal wall over time
   function camDist(t) {
     if (t < T_WALK) return lerp(4.9, 1.0, easeInOutSine(clamp01(t / T_WALK)));
-    if (t < T_PUSH) return lerp(1.0, 0.26, easeInCubic((t - T_WALK) / (T_PUSH - T_WALK)));
-    return Math.max(0.16, 0.26 - (t - T_PUSH) * 0.12);
+    const dEnd = IMG_SCALE_AT_1 / CHAR_SCALE;
+    if (t < T_PUSH) {
+      // Zoom on a log scale so the rush feels even, easing in and out of it.
+      const p = easeInOutCubic((t - T_WALK) / (T_PUSH - T_WALK));
+      return 1 / Math.exp(lerp(0, Math.log(1 / dEnd), p));
+    }
+    return dEnd * (1 - Math.min(0.12, (t - T_PUSH) * 0.09));  // slow creep during the close-up
+  }
+  // Where the camera is looking, in image pixels: the screen's center, then onto the character.
+  function focusAt(t) {
+    const p = easeInOutSine(clamp01((t - T_WALK) / (T_PUSH - T_WALK)));
+    return { x: lerp(FOCUS.x, CHAR.x, p), y: lerp(FOCUS.y, CHAR.y, p) };
   }
   const MAX_SPEED = 3.9 * Math.PI / 2 / T_WALK;
   function walkSpeed(t) {
@@ -125,6 +139,9 @@
     const d = camDist(t), k = 1 / d;
     g.fillStyle = '#04060a';
     g.fillRect(0, 0, W, H);
+    const s = IMG_SCALE_AT_1 * k, fo = focusAt(t);
+    g.save();
+    g.translate(-(fo.x - FOCUS.x) * s, -(fo.y - FOCUS.y) * s);
 
     const wl = CX - WALL_HALF * k, wr = CX + WALL_HALF * k, wt = CY - EYE_UP * k, wb = CY + EYE_DOWN * k;
     const quad = (pts, fill) => { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath(); g.fillStyle = fill; g.fill(); };
@@ -168,11 +185,11 @@
     g.fillRect(0, wb, W, H - wb);
     g.restore();
 
-    // The terminal, mounted on the end wall.
-    const s = IMG_SCALE_AT_1 * k;
+    // The terminal, mounted on the end wall. Pixel art stays crisp (unsmoothed) once it's enlarged.
     const x0 = CX - FOCUS.x * s, y0 = CY - FOCUS.y * s;
     if (terminal) {
       g.save();
+      g.imageSmoothingEnabled = s < 1.3;
       g.shadowColor = 'rgba(0,0,0,0.7)';
       g.shadowBlur = 40 * k;
       g.drawImage(terminal, x0, y0, IMG_W * s, IMG_H * s);
@@ -197,6 +214,7 @@
 
     // Corridor ribs and ceiling lights between us and the wall.
     drawRibs(g, d);
+    g.restore();
 
     // Vignette and film grain.
     gr = g.createRadialGradient(CX, CY, H * 0.35, CX, CY, H * 1.05);
@@ -268,28 +286,29 @@
 
     // Push into the screen: zoom blur and the screen's light flooding the view.
     const push = clamp01((t - T_WALK) / (T_PUSH - T_WALK));
+    const rush = Math.sin(Math.PI * push);  // 0 at the start and end of the push, strongest in the middle
     ctx.drawImage(buf, 0, 0);
-    if (push > 0) {
-      const a = 0.22 * push;
+    if (rush > 0.01) {
+      const a = 0.22 * rush;
       for (let i = 1; i <= 4; i++) {
-        const z = 1 + 0.035 * i * push;
+        const z = 1 + 0.035 * i * rush;
         ctx.globalAlpha = a;
         ctx.drawImage(buf, CX - CX * z, CY - CY * z, W * z, H * z);
       }
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = `rgba(120,135,255,${0.75 * easeInCubic(push) + (t > T_PUSH ? 0.1 : 0)})`;
+      ctx.fillStyle = `rgba(120,135,255,${0.45 * rush})`;
       ctx.fillRect(0, 0, W, H);
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
 
     // Dissolve to the stream: the screen breaks up line by line, with a bright edge on each line.
-    if (t > T_PUSH) {
+    if (t > T_HOLD) {
       const band = 6;
       ctx.save();
       for (let y = 0; y < H; y += band) {
-        const start = T_PUSH + 0.05 + hash(y * 0.37) * 0.5;
+        const start = T_HOLD + 0.05 + hash(y * 0.37) * 0.5;
         const a = clamp01((t - start) / 0.3);
         if (a <= 0) continue;
         ctx.globalCompositeOperation = 'destination-out';
@@ -335,14 +354,14 @@
     hum.gain.setValueAtTime(0.0001, t0);
     hum.gain.exponentialRampToValueAtTime(0.05, t0 + 0.4);
     hum.gain.exponentialRampToValueAtTime(0.11, t0 + T_WALK);
-    hum.gain.exponentialRampToValueAtTime(0.0001, t0 + T_PUSH + 0.3);
+    hum.gain.exponentialRampToValueAtTime(0.0001, t0 + T_HOLD + 0.3);
     hum.connect(out);
     for (const f of [110, 220.6, 331]) {
       const o = ac.createOscillator();
       o.type = f === 110 ? 'sine' : 'triangle';
       o.frequency.value = f;
       const g = ac.createGain(); g.gain.value = f === 110 ? 1 : 0.25;
-      o.connect(g).connect(hum); o.start(t0); o.stop(t0 + T_PUSH + 0.4);
+      o.connect(g).connect(hum); o.start(t0); o.stop(t0 + T_HOLD + 0.4);
     }
     // Terminal wake-up chirp on arrival.
     const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(out);
@@ -364,7 +383,7 @@
     env(bg, we, 0.7, 0.01, 0.75);
     bo.connect(bg).connect(out); bo.start(we); bo.stop(we + 0.9);
     [1568, 2093, 2637].forEach((f, i) => {
-      const o = ac.createOscillator(), g = ac.createGain(), at = we + 0.05 + i * 0.07;
+      const o = ac.createOscillator(), g = ac.createGain(), at = t0 + T_HOLD + 0.05 + i * 0.07;
       o.type = 'triangle'; o.frequency.value = f;
       env(g, at, 0.07, 0.01, 0.6);
       o.connect(g).connect(out); o.start(at); o.stop(at + 0.7);
@@ -393,7 +412,7 @@
     return [Array.from(out.getChannelData(0)), Array.from(out.getChannelData(1))];
   };
   window.renderAt = renderAt;
-  window.ASOP = { DURATION, T_PUSH, T_END };
+  window.ASOP = { DURATION, T_PUSH, T_HOLD, T_END };
 
   // ---- playback
   let start = -1;

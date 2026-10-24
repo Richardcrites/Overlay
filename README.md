@@ -147,7 +147,7 @@ You fire it with a Stream Deck key through Streamer.bot. Setup steps are in [per
 
 ## ASOP Transition (scene transition)
 
-A first-person walk up to the Goopa Troopas ASOP terminal. The camera pushes into its screen, which then dissolves to the stream.
+A first-person walk up to the Goopa Troopas ASOP terminal. The camera pushes in to a close-up of the masked crew member, then dissolves to the stream.
 It comes as an OBS **Stinger** video with a transparent background (`asop-transition/asop-transition.webm`, transition point **2450 ms**)
 and as a browser source. Setup is in [asop-transition/README.md](asop-transition/README.md).
 

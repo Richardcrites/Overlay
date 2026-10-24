@@ -1,8 +1,9 @@
 # 🖥️ ASOP Transition
 
 A first-person scene transition for Star Citizen. You walk down a ship corridor, with head bob and footsteps, up to the
-**Goopa Troopas ASOP terminal**. The terminal pings, the camera pushes into the glowing screen, and the screen
-dissolves line by line to reveal your stream. It takes about 3.3 seconds, and the sound is included.
+**Goopa Troopas ASOP terminal**. The terminal pings, then the camera rushes into the screen and lands on a close-up of
+the masked crew member with the scarf, shown in crisp pixel art. It holds on him for a moment, then the screen dissolves
+line by line to reveal your stream. It takes about 3.75 seconds, and the sound is included.
 
 ```
 asop-transition/asop-transition.webm   the transition as a video with a transparent background (for OBS Stinger)
@@ -18,7 +19,7 @@ This makes it a real scene transition. OBS swaps scenes while the terminal scree
 2. In OBS, find the **Scene Transitions** dock and click **+** → **Stinger**. Name it `ASOP`.
 3. Set **Video File** to `asop-transition.webm`.
 4. Set **Transition Point Type** to **Time (milliseconds)** and **Transition Point** to **2450**.
-   That's the moment the screen fully covers the view.
+   By then the close-up fully covers the view, so OBS swaps scenes out of sight before the dissolve starts.
 5. Set **Audio Monitoring** to **Monitor and Output** if you want to hear it yourself too. Click **OK**.
 
 To use it:
@@ -36,7 +37,7 @@ Use this to play it on top of the current scene without switching scenes. It wor
 2. Tick **Control audio via OBS**, **Shutdown source when not visible** and **Refresh browser when scene becomes active**.
 3. Hide the source. Showing it plays the transition once.
    From Stream Deck, use the OBS plugin's **Source visibility** action, or a Streamer.bot action that shows the source,
-   waits 3.5 s, and hides it again.
+   waits 4 s, and hides it again.
 
 Alternatively, add `?streamerbot=1` to the URL. The page then waits for a Streamer.bot **Custom** WebSocket event
 containing the word `asop`, the same setup as Perfect Landing's `perfect-landing` trigger.
@@ -54,6 +55,7 @@ To preview it, open `index.html?bg=1&loop=1` in a browser and click the page to 
 
 ## Changing it
 
-The timing and look are at the top of the script in `index.html`: `T_WALK` (arrival), `T_PUSH` (screen fills the view),
-`T_END` (fully dissolved). To use different art, replace `asop.webp` and adjust `SCREEN`, the blue screen's position
+The timing and look are at the top of the script in `index.html`: `T_WALK` (arrival), `T_PUSH` (close-up reached),
+`T_HOLD` (close-up ends, dissolve starts), `T_END` (fully dissolved). `CHAR` is the spot in the image the camera
+zooms in on, in pixels, and `CHAR_SCALE` is how close it gets. To use different art, replace `asop.webp` and adjust `SCREEN`, the blue screen's position
 in the image, in pixels. If you change anything, the `.webm` needs to be rendered again. Ask Claude to re-render it.
