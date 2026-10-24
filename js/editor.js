@@ -150,7 +150,7 @@
   function toggleStopwatch(layer, key) {
     const ks = layer.keys[key];
     if (ks && ks.length) {
-      layer.props[key] = RT.evalProp(layer, key, S.time);
+      layer.props[key] = RT.keyedValue(layer, key, S.time);
       delete layer.keys[key];
       if (S.selKey && S.selKey.layerId === layer.id && S.selKey.prop === key) S.selKey = null;
     } else {
@@ -162,10 +162,10 @@
   function toggleKeyHere(layer, key) {
     const i = keyAt(layer, key, S.time);
     if (i >= 0) {
-      const v = RT.evalProp(layer, key, S.time);
+      const v = RT.keyedValue(layer, key, S.time);
       layer.keys[key].splice(i, 1);
       if (!layer.keys[key].length) { delete layer.keys[key]; layer.props[key] = v; }
-    } else upsertKey(layer, key, snapT(S.time), RT.evalProp(layer, key, S.time));
+    } else upsertKey(layer, key, snapT(S.time), RT.keyedValue(layer, key, S.time));
     commit();
   }
   function jumpKey(layer, key, dir) {
@@ -255,52 +255,76 @@
     ctx.drawImage(bgCache[S.bg], 0, 0);
     ctx.restore();
     const al = alertObj();
-    RT.render(ctx, al, S.time, { width: W, height: H, images, assetNames: assetNames(), vars: S.vars[S.type] });
-    drawSelection(al);
+    const draft = S.playing && !$('#chkQuality').checked;
+    RT.render(ctx, al, S.time, { width: W, height: H, images, assetNames: assetNames(), vars: S.vars[S.type], quality: draft ? 'draft' : 'full' });
+    drawSelection();
   }
 
-  function drawSelection(al) {
+  // Layer content space -> canvas pixels.
+  function screenMatrix(L, t) {
+    const al = alertObj();
+    return RT.alertMatrix(al, W, H).multiply(RT.worldMatrix(L, t, RT.layerIndex(al)));
+  }
+  // The space a layer's Position lives in: its parent's content space (or the alert's).
+  function parentMatrix(L, t) {
+    const al = alertObj(), byId = RT.layerIndex(al);
+    const p = L.parent && byId[L.parent];
+    return RT.alertMatrix(al, W, H).multiply(p ? RT.worldMatrix(p, t, byId) : new DOMMatrix());
+  }
+  const det = (m) => Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)) || 1e-6;
+
+  function drawSelection() {
     const L = selLayer();
     if (!L || !RT.layerActive(L, S.time) || S.playing) return;
     const b = RT.layerBounds(ctx, L, S.time, S.vars[S.type]);
+    const m = screenMatrix(L, S.time);
+    if (det(m) < 1e-4) return;
     const v = b.v;
+    const ax = v.anchorX || 0, ay = v.anchorY || 0;
     ctx.save();
-    RT.applyAlertTransform(ctx, al, W, H);
-    ctx.translate(v.x, v.y);
-    ctx.rotate(v.rotation * Math.PI / 180);
-    const sc = Math.abs(v.scale) < 1e-3 ? 1e-3 : v.scale;
-    ctx.scale(sc, sc);
-    const lw = 2 / Math.abs(sc) / ((al.offset && al.offset.scale) || 1);
+    ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
+    const lw = 2 / det(m);
     ctx.lineWidth = lw;
     ctx.setLineDash([8 * lw, 6 * lw]);
     ctx.strokeStyle = '#ffc94a';
     ctx.strokeRect(b.x - 4 * lw, b.y - 4 * lw, b.w + 8 * lw, b.h + 8 * lw);
     ctx.setLineDash([]);
+    // Anchor point crosshair, like After Effects.
     ctx.beginPath();
-    ctx.moveTo(-10 * lw, 0); ctx.lineTo(10 * lw, 0); ctx.moveTo(0, -10 * lw); ctx.lineTo(0, 10 * lw);
+    ctx.arc(ax, ay, 5 * lw, 0, Math.PI * 2);
+    ctx.moveTo(ax - 12 * lw, ay); ctx.lineTo(ax + 12 * lw, ay); ctx.moveTo(ax, ay - 12 * lw); ctx.lineTo(ax, ay + 12 * lw);
     ctx.stroke();
     ctx.restore();
+    const pl = L.parent && alertObj().layers.find((l) => l.id === L.parent);
+    if (pl && RT.layerActive(pl, S.time)) {
+      // Pick-whip style line to the parent's anchor.
+      const pv = RT.evalLayer(pl, S.time);
+      const a1 = m.transformPoint(new DOMPoint(ax, ay));
+      const a2 = screenMatrix(pl, S.time).transformPoint(new DOMPoint(pv.anchorX || 0, pv.anchorY || 0));
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,201,74,0.6)';
+      ctx.setLineDash([6, 6]);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y); ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function canvasPoint(e) {
     const r = cv.getBoundingClientRect();
-    const px = (e.clientX - r.left) * W / r.width, py = (e.clientY - r.top) * H / r.height;
-    const o = alertObj().offset || { x: 0, y: 0, scale: 1 };
-    const s = o.scale || 1;
-    return { x: (px - W / 2 - (o.x || 0)) / s + W / 2, y: (py - H / 2 - (o.y || 0)) / s + H / 2, s };
+    return new DOMPoint((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height);
   }
   function hitTest(pt) {
     for (const L of alertObj().layers) {
       if (L.locked || !RT.layerActive(L, S.time)) continue;
       if (L.type === 'particles' && L.id !== S.sel) continue;
       const b = RT.layerBounds(ctx, L, S.time, S.vars[S.type]);
-      const v = b.v;
-      if (Math.abs(v.scale) < 1e-3 || v.opacity <= 0) continue;
-      const a = -v.rotation * Math.PI / 180;
-      const dx = pt.x - v.x, dy = pt.y - v.y;
-      const lx = (dx * Math.cos(a) - dy * Math.sin(a)) / v.scale, ly = (dx * Math.sin(a) + dy * Math.cos(a)) / v.scale;
-      const pad = 8 / Math.abs(v.scale);
-      if (lx >= b.x - pad && lx <= b.x + b.w + pad && ly >= b.y - pad && ly <= b.y + b.h + pad) return L;
+      if (b.v.opacity <= 0) continue;
+      const m = screenMatrix(L, S.time);
+      if (det(m) < 1e-3) continue;
+      const lp = m.inverse().transformPoint(pt);
+      const pad = 8 / det(m);
+      if (lp.x >= b.x - pad && lp.x <= b.x + b.w + pad && lp.y >= b.y - pad && lp.y <= b.y + b.h + pad) return L;
     }
     return null;
   }
@@ -311,12 +335,14 @@
     const L = hitTest(pt);
     selectLayer(L ? L.id : null);
     if (!L || L.locked) return;
-    const ox = RT.evalProp(L, 'x', S.time), oy = RT.evalProp(L, 'y', S.time);
+    const ox = RT.keyedValue(L, 'x', S.time), oy = RT.keyedValue(L, 'y', S.time);
+    const inv = parentMatrix(L, S.time).inverse();
+    const p0 = inv.transformPoint(pt);
     let moved = false;
     cv.setPointerCapture(e.pointerId);
     const move = (ev) => {
-      const p = canvasPoint(ev);
-      let nx = ox + (p.x - pt.x), ny = oy + (p.y - pt.y);
+      const p = inv.transformPoint(canvasPoint(ev));
+      let nx = ox + (p.x - p0.x), ny = oy + (p.y - p0.y);
       if (ev.shiftKey) { if (Math.abs(nx - ox) > Math.abs(ny - oy)) ny = oy; else nx = ox; }
       setProp(L, 'x', Math.round(nx));
       setProp(L, 'y', Math.round(ny));
@@ -522,10 +548,13 @@
       const texts = {};
       for (const l of dst.layers) if (l.type === 'text') texts[l.name] = l.props.text;
       const copy = clone(src);
+      const ids = {};
       for (const l of copy.layers) {
-        l.id = RT.uid('l');
+        ids[l.id] = RT.uid('l');
+        l.id = ids[l.id];
         if (l.type === 'text' && texts[l.name] != null) l.props.text = texts[l.name];
       }
+      for (const l of copy.layers) if (l.parent) l.parent = ids[l.parent] || null;
       copy.enabled = dst.enabled;
       P.alerts[a.id] = copy;
     }
@@ -567,11 +596,13 @@
         el('button', { class: 'danger', onclick: deleteLayer, title: 'Delete' }, 'Delete')),
       el('div', { class: 'prop static' }, el('span'), el('span', { class: 'lbl' }, 'Starts at (s)'), numInput(L.inPoint, 0.05, (v) => { L.inPoint = clamp(v, 0, L.outPoint - 0.05); })),
       el('div', { class: 'prop static' }, el('span'), el('span', { class: 'lbl' }, 'Ends at (s)'), numInput(L.outPoint, 0.05, (v) => { L.outPoint = Math.max(L.inPoint + 0.05, v); })),
+      el('div', { class: 'prop static' }, el('span'), el('span', { class: 'lbl', title: 'Follow another layer\'s position, rotation and scale (After Effects Parent & Link)' }, 'Parent'), parentSelect(L)),
     ));
     const fields = RT.SCHEMA[L.type];
-    const commonKeys = new Set(['x', 'y', 'scale', 'rotation', 'opacity', 'blur', 'glow', 'glowColor', 'blend']);
-    box.append(sec('Transform & effects', fields.filter((f) => commonKeys.has(f.key)).map((f) => propRow(L, f))));
-    box.append(sec({ image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote' }[L.type], fields.filter((f) => !commonKeys.has(f.key)).map((f) => propRow(L, f))));
+    const tk = new Set(RT.TRANSFORM_KEYS), ek = new Set(RT.EFFECT_KEYS);
+    box.append(sec('Transform', fields.filter((f) => tk.has(f.key)).map((f) => propRow(L, f))));
+    box.append(sec({ image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote' }[L.type], fields.filter((f) => !tk.has(f.key) && !ek.has(f.key)).map((f) => propRow(L, f))));
+    box.append(sec('Effects', fields.filter((f) => ek.has(f.key)).map((f) => propRow(L, f))));
 
     const sk = S.selKey;
     if (sk && sk.layerId === L.id) {
@@ -582,8 +613,13 @@
         const label = sk.prop === '*' ? kfs.length + ' keyframe(s)' : RT.fieldDef(L.type, sk.prop).label;
         box.append(el('section', null, el('div', { class: 'keybox' },
           el('h4', null, '◆ ' + label + ' @ ' + sk.t.toFixed(2) + 's'),
-          field('Easing to next', el('select', { onchange: (e) => { kfs.forEach((k) => { k.e = e.target.value; }); commit(); } },
-            Object.keys(RT.EASE_LABELS).map((k) => el('option', { value: k, selected: kfs[0].e === k }, RT.EASE_LABELS[k])))),
+          field('Easing to next', el('select', {
+            onchange: (e) => {
+              kfs.forEach((k) => { k.e = e.target.value; if (k.e === 'bezier' && !k.b) k.b = RT.EASY_EASE.slice(); });
+              commit();
+            },
+          }, Object.keys(RT.EASE_LABELS).map((k) => el('option', { value: k, selected: kfs[0].e === k }, RT.EASE_LABELS[k])))),
+          kfs[0].e === 'bezier' ? graphEditor(kfs) : null,
           el('div', { class: 'row' },
             el('button', { class: 'danger', onclick: deleteSelectedKeys }, 'Delete keyframe'),
             el('button', { onclick: () => { S.selKey = null; renderInspector(); renderTimeline(); } }, 'Deselect')),
@@ -592,9 +628,101 @@
     }
   }
 
+  function parentSelect(L) {
+    const al = alertObj();
+    const descends = (cand) => { for (let x = cand, n = 0; x && n < 10; n++) { if (x.id === L.id) return true; x = al.layers.find((l) => l.id === x.parent); } return false; };
+    const opts = [el('option', { value: '' }, 'None')].concat(al.layers.filter((l) => l.id !== L.id && !descends(l))
+      .map((l) => el('option', { value: l.id, selected: L.parent === l.id }, l.name)));
+    return el('select', { onchange: (e) => { setParent(L, e.target.value || null); commit(); } }, opts);
+  }
+
+  // Re-parent without the layer jumping: re-express its transform in the new parent's space
+  // (at the current time), shifting all of its keyframes by the same amount.
+  function setParent(L, pid) {
+    const t = S.time;
+    const before = screenMatrix(L, t);
+    const v = RT.evalLayer(L, t);
+    L.parent = pid;
+    const local = parentMatrix(L, t).inverse().multiply(before);
+    const anchorPt = local.transformPoint(new DOMPoint(v.anchorX || 0, v.anchorY || 0));
+    const rot = Math.atan2(local.b, local.a) * 180 / Math.PI;
+    const sc = Math.hypot(local.a, local.b) / Math.max(1e-6, Math.abs(v.scaleX == null ? 1 : v.scaleX));
+    const shift = (key, fn) => {
+      if (L.keys[key] && L.keys[key].length) L.keys[key].forEach((k) => { k.v = fn(k.v); });
+      else L.props[key] = fn(RT.keyedValue(L, key, t));
+    };
+    const dx = anchorPt.x - v.x, dy = anchorPt.y - v.y, dr = rot - v.rotation, ks = v.scale ? sc / v.scale : 1;
+    shift('x', (x) => round(x + dx));
+    shift('y', (y) => round(y + dy));
+    shift('rotation', (r) => round(r + dr));
+    shift('scale', (c) => round(c * ks));
+  }
+
+  // Bezier speed-graph editor for the selected keyframes (drag the two handles).
+  function graphEditor(kfs) {
+    const Wg = 260, Hg = 170, pad = 18;
+    const c = el('canvas', { width: Wg, height: Hg, class: 'graph', title: 'Drag the yellow handles to shape the motion' });
+    const g = c.getContext('2d');
+    const X = (x) => pad + x * (Wg - 2 * pad), Y = (y) => Hg - pad - (y + 0.25) / 1.5 * (Hg - 2 * pad);
+    const ux = (px) => clamp((px - pad) / (Wg - 2 * pad), 0, 1), uy = (py) => clamp((Hg - pad - py) / (Hg - 2 * pad) * 1.5 - 0.25, -1, 2);
+    const b = () => kfs[0].b || RT.EASY_EASE;
+    const paint = () => {
+      const [x1, y1, x2, y2] = b();
+      g.clearRect(0, 0, Wg, Hg);
+      g.fillStyle = '#060c14'; g.fillRect(0, 0, Wg, Hg);
+      g.strokeStyle = '#1f3044'; g.lineWidth = 1;
+      g.strokeRect(X(0), Y(1), X(1) - X(0), Y(0) - Y(1));
+      g.strokeStyle = '#3a536c';
+      g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(x1), Y(y1)); g.moveTo(X(1), Y(1)); g.lineTo(X(x2), Y(y2)); g.stroke();
+      g.strokeStyle = '#3fd8ff'; g.lineWidth = 2.5;
+      g.beginPath();
+      for (let i = 0; i <= 60; i++) { const p = i / 60, y = RT.cubicBezier(b(), p); if (i) g.lineTo(X(p), Y(y)); else g.moveTo(X(p), Y(y)); }
+      g.stroke();
+      g.fillStyle = '#ffc94a';
+      for (const [hx, hy] of [[x1, y1], [x2, y2]]) { g.beginPath(); g.arc(X(hx), Y(hy), 6, 0, Math.PI * 2); g.fill(); }
+      g.fillStyle = '#7d93a8'; g.font = '11px Rajdhani';
+      g.fillText('time →', Wg - 52, Hg - 4); g.fillText('value', 2, 12);
+    };
+    c.addEventListener('pointerdown', (e) => {
+      const r = c.getBoundingClientRect();
+      const pos = (ev) => [(ev.clientX - r.left) * Wg / r.width, (ev.clientY - r.top) * Hg / r.height];
+      const [px, py] = pos(e);
+      const [x1, y1, x2, y2] = b();
+      const which = Math.hypot(px - X(x1), py - Y(y1)) < Math.hypot(px - X(x2), py - Y(y2)) ? 0 : 2;
+      c.setPointerCapture(e.pointerId);
+      const move = (ev) => {
+        const [mx, my] = pos(ev);
+        kfs.forEach((k) => { k.b = (k.b || RT.EASY_EASE).slice(); k.b[which] = round(ux(mx)); k.b[which + 1] = round(uy(my)); });
+        paint();
+        markDirty();
+      };
+      const up = () => { c.removeEventListener('pointermove', move); c.removeEventListener('pointerup', up); commit(); };
+      c.addEventListener('pointermove', move);
+      c.addEventListener('pointerup', up);
+    });
+    paint();
+    return el('div', null, c, el('div', { class: 'row' }, Object.keys(RT.BEZIER_PRESETS).map((name) => el('button', {
+      class: 'icon small', onclick: () => { kfs.forEach((k) => { k.e = 'bezier'; k.b = RT.BEZIER_PRESETS[name].slice(); }); commit(); },
+    }, name))));
+  }
+
+  function wiggleDefault(f) {
+    if (f.key === 'x' || f.key === 'y') return 12;
+    if (f.key === 'rotation' || f.key === 'skew') return 4;
+    if (f.max != null && f.max <= 1) return 0.2;
+    return Math.max(f.step * 20, 0.05);
+  }
+  function toggleWiggle(L, f) {
+    L.wiggle = L.wiggle || {};
+    if (L.wiggle[f.key]) delete L.wiggle[f.key];
+    else L.wiggle[f.key] = { f: 2, a: wiggleDefault(f), s: 1 + Math.floor(Math.random() * 997) };
+    if (!Object.keys(L.wiggle).length) delete L.wiggle;
+    commit();
+  }
+
   function propRow(L, f) {
     const animated = !!(L.keys[f.key] && L.keys[f.key].length);
-    const value = f.anim ? RT.evalProp(L, f.key, S.time) : L.props[f.key];
+    const value = f.anim ? RT.keyedValue(L, f.key, S.time) : L.props[f.key];
     let input;
     const live = (v) => { setProp(L, f.key, v); markDirty(); };
     if (f.type === 'num') {
@@ -640,14 +768,21 @@
     if (f.type === 'num') attachScrub(lbl, L, f, input);
     if (!f.anim) return el('div', { class: 'prop static' }, el('span'), lbl, input);
     const k = keyAt(L, f.key, S.time) >= 0;
-    return el('div', { class: 'prop' + (animated ? ' animated' : ''), 'data-prop': f.key },
+    const wg = L.wiggle && L.wiggle[f.key];
+    const row = el('div', { class: 'prop' + (animated ? ' animated' : '') + (wg ? ' wiggling' : ''), 'data-prop': f.key },
       el('button', { class: 'sw' + (animated ? ' on' : ''), title: animated ? 'Stop animating (removes keyframes)' : 'Animate this property', onclick: () => toggleStopwatch(L, f.key) }, '⏱'),
       lbl, input,
       el('div', { class: 'kn' },
         el('button', { disabled: !animated, title: 'Previous keyframe', onclick: () => jumpKey(L, f.key, -1) }, '◀'),
         el('button', { class: 'k' + (k ? ' on' : ''), disabled: !animated, title: 'Add / remove keyframe here', onclick: () => toggleKeyHere(L, f.key) }, k ? '◆' : '◇'),
-        el('button', { disabled: !animated, title: 'Next keyframe', onclick: () => jumpKey(L, f.key, 1) }, '▶')),
+        el('button', { disabled: !animated, title: 'Next keyframe', onclick: () => jumpKey(L, f.key, 1) }, '▶'),
+        f.type === 'num' ? el('button', { class: 'wig' + (wg ? ' on' : ''), title: 'Wiggle: random organic motion, like the After Effects wiggle() expression', onclick: () => toggleWiggle(L, f) }, '\u223F') : null),
     );
+    if (!wg) return row;
+    return el('div', null, row, el('div', { class: 'wigrow' },
+      el('span', null, '\u223F wiggle'),
+      el('label', null, 'Hz ', el('input', { type: 'number', step: 0.5, min: 0, value: wg.f, oninput: (e) => { wg.f = Math.max(0, parseFloat(e.target.value) || 0); markDirty(); }, onchange: () => commit() })),
+      el('label', null, 'Amount ', el('input', { type: 'number', step: f.step, min: 0, value: wg.a, oninput: (e) => { wg.a = Math.max(0, parseFloat(e.target.value) || 0); markDirty(); }, onchange: () => commit() }))));
   }
 
   function attachScrub(lbl, L, f, input) {
@@ -685,7 +820,7 @@
     for (const row of document.querySelectorAll('#inspector .prop[data-prop]')) {
       const key = row.dataset.prop;
       const input = row.querySelector('input[data-key]');
-      if (input && document.activeElement !== input) input.value = round(RT.evalProp(L, key, S.time));
+      if (input && document.activeElement !== input) input.value = round(RT.keyedValue(L, key, S.time));
       const kb = row.querySelector('.kn .k');
       if (kb && !kb.disabled) {
         const on = keyAt(L, key, S.time) >= 0;
@@ -743,6 +878,14 @@
     al.layers.splice(j, 0, l);
     commit();
   }
+  function easyEaseSelected() {
+    const sk = S.selKey;
+    const L = sk && alertObj().layers.find((l) => l.id === sk.layerId);
+    if (!L) return;
+    for (const p of sk.prop === '*' ? Object.keys(L.keys) : [sk.prop]) for (const k of L.keys[p] || []) if (Math.abs(k.t - sk.t) < 0.005) { k.e = 'bezier'; k.b = RT.EASY_EASE.slice(); }
+    commit();
+    toast('Easy Ease');
+  }
   function deleteSelectedKeys() {
     const sk = S.selKey;
     const L = sk && alertObj().layers.find((l) => l.id === sk.layerId);
@@ -751,7 +894,7 @@
     for (const p of props) {
       const ks = L.keys[p];
       if (!ks) continue;
-      const v = RT.evalProp(L, p, sk.t);
+      const v = RT.keyedValue(L, p, sk.t);
       L.keys[p] = ks.filter((k) => Math.abs(k.t - sk.t) >= 0.005);
       if (!L.keys[p].length) { delete L.keys[p]; L.props[p] = v; }
     }
@@ -987,9 +1130,17 @@
         const keys = {};
         for (const k in l.keys) {
           if (!l.keys[k].length) continue;
-          keys[k] = l.keys[k].map((kf) => (kf.e && kf.e !== 'linear' ? { t: r(kf.t), v: r(kf.v), e: kf.e } : { t: r(kf.t), v: r(kf.v) }));
+          keys[k] = l.keys[k].map((kf) => {
+            const o = { t: r(kf.t), v: r(kf.v) };
+            if (kf.e && kf.e !== 'linear') o.e = kf.e;
+            if (kf.e === 'bezier' && kf.b) o.b = kf.b.map(r);
+            return o;
+          });
         }
-        return { type: l.type, inPoint: r(l.inPoint), outPoint: r(l.outPoint), props, keys };
+        const out = { id: l.id, type: l.type, inPoint: r(l.inPoint), outPoint: r(l.outPoint), props, keys };
+        if (l.parent) out.parent = l.parent;
+        if (l.wiggle && Object.keys(l.wiggle).length) out.wiggle = l.wiggle;
+        return out;
       });
       out[id] = { enabled: true, duration: al.duration, offset: al.offset, sound: al.sound, layers };
     }
@@ -1008,7 +1159,7 @@
     }
     const project = { version: P.version, width: W, height: H, assets, alerts: compactAlerts() };
     const s = P.settings;
-    const config = { source, volume: s.volume, gap: s.gap, chatTest: s.chatTest, catchUp: s.catchUp !== false, fontCss: FONT_CSS, hideStatus: source === 'streamelements' };
+    const config = { source, volume: s.volume, gap: s.gap, chatTest: s.chatTest, catchUp: s.catchUp !== false, quality: s.quality || 'high', fontCss: FONT_CSS, hideStatus: source === 'streamelements' };
     const sb = { host: s.sbHost || '127.0.0.1', port: s.sbPort || 8080, password: s.sbPassword || '' };
     if (source === 'twitch') Object.assign(config, { channel: s.channel, token: s.token, testOnLoad: s.testOnLoad });
     else if (source === 'streamerbot') Object.assign(config, { streamerbot: sb, testOnLoad: s.sbTestOnLoad });
@@ -1083,6 +1234,7 @@
     $('#exGap').value = s.gap;
     $('#exChatTest').checked = !!s.chatTest;
     $('#exCatchUp').checked = s.catchUp !== false;
+    $('#exQuality').value = s.quality || 'high';
     $('#exTestOnLoad').checked = !!s.testOnLoad;
     $('#exSbCheers').checked = !!s.sbCheers;
     $('#exSbHost').value = s.sbHost || '';
@@ -1104,6 +1256,7 @@
     s.gap = Math.max(0, parseFloat($('#exGap').value) || 0);
     s.chatTest = $('#exChatTest').checked;
     s.catchUp = $('#exCatchUp').checked;
+    s.quality = $('#exQuality').value;
     s.testOnLoad = $('#exTestOnLoad').checked;
     s.sbCheers = $('#exSbCheers').checked;
     s.sbHost = $('#exSbHost').value.trim();
@@ -1260,14 +1413,15 @@
     else if (e.key === ',' || e.key === '.') setTime(S.time + (e.key === ',' ? -1 : 1) / 30);
     else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); S.selKey ? deleteSelectedKeys() : deleteLayer(); }
     else if (e.key === 'Escape') { S.selKey = null; selectLayer(null); }
+    else if (e.key === 'F9' && S.selKey) { e.preventDefault(); easyEaseSelected(); }
     else if (e.key.startsWith('Arrow') && selLayer()) {
       e.preventDefault();
       const L = selLayer();
       const d = e.shiftKey ? 10 : 1;
       const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
       const dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
-      setProp(L, 'x', RT.evalProp(L, 'x', S.time) + dx);
-      setProp(L, 'y', RT.evalProp(L, 'y', S.time) + dy);
+      setProp(L, 'x', RT.keyedValue(L, 'x', S.time) + dx);
+      setProp(L, 'y', RT.keyedValue(L, 'y', S.time) + dy);
       commit();
     }
   });
@@ -1321,7 +1475,7 @@
   }
 
   function offerTemplateUpgrade() {
-    const yes = confirm('New look for your alerts: animated dog emotes (wink, pog, heart eyes...), dogs that tilt and bounce, and cleaner wording.\n\n' +
+    const yes = confirm('New, higher-quality look for your alerts: motion blur, bloom glow, light sweeps, HUD glitches, decoding names, animated dog emotes and cleaner wording.\n\n' +
       'Update all 7 alerts now? Your dog photos, names, sounds and settings are kept. Custom layer edits are replaced (Ctrl+Z undoes it).');
     P.templateVersion = TEMPLATE_VERSION;
     scheduleSave();

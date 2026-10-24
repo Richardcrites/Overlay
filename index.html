@@ -80,8 +80,9 @@
       <span id="timeDisplay">0.00s</span>
       <label><input type="checkbox" id="chkLoop" checked> Loop</label>
       <label><input type="checkbox" id="chkSound" checked> Sound</label>
+      <label title="Motion blur while playing. Turn off if playback stutters on a slow PC (exports are always full quality)."><input type="checkbox" id="chkQuality" checked> Full quality</label>
       <div class="spacer"></div>
-      <span class="hint">Drag layers on the canvas &middot; click &#x23F1; to animate a property &middot; drag &#x25C6; keyframes in time</span>
+      <span class="hint">Drag layers on the canvas &middot; click &#x23F1; to animate &middot; &#x223F; wiggles &middot; F9 = Easy Ease on a selected &#x25C6;</span>
     </div>
     <div id="tlScroll"><div id="tlBody"></div></div>
   </footer>
@@ -171,6 +172,12 @@
           <label>Master volume <input id="exVolume" type="range" min="0" max="1" step="0.05"></label>
           <label>Gap between alerts (s) <input id="exGap" type="number" min="0" step="0.5"></label>
         </div>
+        <label>Render quality
+          <select id="exQuality" style="display:block;width:100%;margin-top:3px">
+            <option value="high">High: motion blur + bloom glow (looks best)</option>
+            <option value="standard">Standard: lighter on your PC (pick this if OBS stutters)</option>
+          </select>
+        </label>
         <label class="check"><input type="checkbox" id="exCatchUp" checked> Speed up alerts when several are waiting (up to 2&times;)</label>
         <label class="check"><input type="checkbox" id="exChatTest"> Let me &amp; mods type <code>!testalert sub</code> (or follow, raid, all...) in chat</label>
       </details>

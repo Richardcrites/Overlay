@@ -3,7 +3,7 @@
  * Each alert type gets its own color, headline and crew line-up.
  */
 // Text supports {variables} and plurals: {bits:bit|bits} reads "bit" when bits is 1.
-const TEMPLATE_VERSION = 2;
+const TEMPLATE_VERSION = 3;
 const THEMES = {
   follow: { color: '#3fd8ff', dogs: ['dog1'], emote: 'wink', header: 'NEW RECRUIT', title: '{user}', sub: 'just joined the pack. Welcome aboard!', synth: 'chirp' },
   sub: { color: '#ffc94a', dogs: ['dog2'], emote: 'pog', header: 'WELCOME TO THE BIG DOGS', title: '{user}', sub: 'just subscribed  \u2022  {tier}', synth: 'quantum' },
@@ -25,6 +25,7 @@ function makeTemplate(RT, type) {
     for (const key in keys || {}) if (keys[key].length) l.keys[key] = keys[key];
     return l;
   };
+  const wiggle = (l, prop, f, a, sd) => { l.wiggle = l.wiggle || {}; l.wiggle[prop] = { f, a, s: sd }; return l; };
   const multi = th.dogs.length > 1;
   const layers = [];
 
@@ -41,27 +42,31 @@ function makeTemplate(RT, type) {
   if (th.message && !multi) {
     layers.push(L('text', 'Chat message', 2.6, D - 0.4, {
       text: th.message, font: 'Rajdhani', size: 28, weight: '600', italic: true, color: '#d6e4f0',
-      x: P.x, y: P.y + P.h / 2 + 46, align: 'center', wrap: 780, glow: 8, glowColor: '#000000',
-    }, { opacity: [k(2.6, 0), k(3.0, 1), ...fadeOut(D - 0.9, D - 0.5)], y: [k(2.6, P.y + P.h / 2 + 66), k(3.0, P.y + P.h / 2 + 46)] }));
+      x: P.x, y: P.y + P.h / 2 + 46, align: 'center', wrap: 780, outline: 2, outlineColor: '#02060c', animator: 'fadeUp', stagger: 0.03,
+    }, { progress: [k(2.6, 0, 'linear'), k(3.5, 1)], opacity: fadeOut(D - 0.9, D - 0.5) }));
   }
   layers.push(L('text', 'Subtitle', 2.2, D - 0.4, {
-    text: th.sub, font: 'Rajdhani', size: multi ? 30 : 31, weight: '600', color: '#e3f6ff', x: TX, y: ty.s, align, fit: FIT,
-  }, { reveal: [k(2.2, 0, 'linear'), k(2.9, 1)], opacity: fadeOut(D - 0.9, D - 0.5) }));
+    text: th.sub, font: 'Rajdhani', size: multi ? 30 : 31, weight: '600', color: '#e3f6ff', x: TX, y: ty.s, align, fit: FIT, animator: 'fadeUp', stagger: 0.06,
+  }, { progress: [k(2.2, 0, 'linear'), k(3.0, 1)], opacity: fadeOut(D - 0.9, D - 0.5) }));
   layers.push(L('text', 'Name', 1.9, D - 0.4, {
     text: th.title, font: 'Orbitron', size: multi ? 56 : 60, weight: '900', color: '#ffffff', x: TX, y: ty.t, align, fit: FIT, glow: 22, glowColor: C,
+    animator: 'decode', stagger: 0.12, gradient: true, color2: C, motionBlur: true, sweepWidth: 110,
   }, {
-    opacity: [k(1.9, 0), k(2.3, 1), ...fadeOut(D - 0.9, D - 0.5)],
-    x: multi ? [] : [k(1.9, TX + 50), k(2.4, TX)],
+    opacity: [k(1.9, 0), k(2.2, 1), ...fadeOut(D - 0.9, D - 0.5)],
+    progress: [k(1.9, 0, 'linear'), k(2.75, 1)],
+    x: multi ? [] : [{ t: 1.9, v: TX + 70, e: 'bezier', b: [0.15, 0.9, 0.2, 1] }, k(2.4, TX)],
     tracking: [k(1.9, 24, 'expoOut'), k(2.6, 3)],
+    sweep: [k(3.1, 0, 'easeInOut'), k(3.75, 1)],
   }));
   layers.push(L('text', 'Header', 1.7, D - 0.4, {
     text: th.header, font: 'Share Tech Mono', size: 24, weight: '400', color: C, x: TX, y: ty.h, align, fit: FIT, tracking: 5, glow: 10, glowColor: C,
-  }, { reveal: [k(1.7, 0, 'linear'), k(2.15, 1)], opacity: fadeOut(D - 0.9, D - 0.5) }));
+    animator: 'decode', stagger: 0.05,
+  }, { progress: [k(1.7, 0, 'linear'), k(2.3, 1)], opacity: fadeOut(D - 0.9, D - 0.5) }));
 
   // ---- animated cartoon dog emote, peeking over the panel's top-right corner
   const E = multi ? { x: P.x + P.w / 2 - 10, y: P.y - P.h / 2 - 14, s: 165 } : { x: P.x + P.w / 2 - 25, y: P.y - P.h / 2 - 22, s: 185 };
   layers.push(L('emote', 'Dog emote', 2.3, D - 0.4, {
-    expression: th.emote, helmet: !!th.helmet, accent: C, x: E.x, y: E.y, width: E.s, height: E.s, glow: 18, glowColor: C,
+    expression: th.emote, helmet: !!th.helmet, accent: C, x: E.x, y: E.y, width: E.s, height: E.s, glow: 18, glowColor: C, motionBlur: true,
   }, {
     scale: [k(2.3, 0, 'backOut'), k(2.75, 1), k(D - 0.9, 1, 'backIn'), k(D - 0.55, 0)],
     rotation: [k(2.3, -35, 'backOut'), k(2.8, 0)],
@@ -82,7 +87,9 @@ function makeTemplate(RT, type) {
     }));
     layers.push(L('image', 'Dog ' + dog.slice(3), t0, D - 0.3, {
       asset: dog, x: dogXs[i], y: dogY, width: dogSize, height: dogSize, mask: 'circle', border: 4, borderColor: C, glow: 26, glowColor: C,
+      motionBlur: true, sweepWidth: 70,
     }, {
+      sweep: [k(2.0 + i * 0.12, 0, 'easeInOut'), k(2.6 + i * 0.12, 1)],
       scale: [k(t0, 0, 'backOut'), k(t0 + 0.5, 1, 'linear'), k(4.3 + i * 0.2, 1, 'easeOut'), k(4.45 + i * 0.2, 1.1, 'backOut'), k(4.75 + i * 0.2, 1, 'linear'), k(D - 0.8, 1, 'backIn'), k(D - 0.4, 0)],
       rotation: [k(t0, -25), k(t0 + 0.6, 0, 'linear'), k(3.0 + i * 0.2, 0, 'easeInOut'), k(3.3 + i * 0.2, -10, 'easeInOut'), k(3.7 + i * 0.2, 8, 'easeInOut'), k(4.0 + i * 0.2, 0)],
     }));
@@ -98,12 +105,15 @@ function makeTemplate(RT, type) {
   layers.push(L('shape', 'Scan line', 1.8, 3.2, {
     kind: 'line', x: P.x, y: P.y - P.h / 2, width: P.w - 40, height: 4, stroke: C, strokeWidth: 2, glow: 16, glowColor: C,
   }, { y: [k(1.8, P.y - P.h / 2 + 8, 'easeInOut'), k(3.0, P.y + P.h / 2 - 8)], opacity: [k(1.8, 0.9), k(2.9, 0.9), k(3.2, 0)] }));
-  layers.push(L('shape', 'Brackets', 1.5, D - 0.3, {
-    kind: 'brackets', x: P.x, y: P.y, width: P.w + 44, height: P.h + 44, stroke: C, strokeWidth: 3, glow: 10, glowColor: C,
-  }, { scale: [k(1.5, 1.35, 'expoOut'), k(2.0, 1)], opacity: [k(1.5, 0), k(1.8, 1), ...fadeOut(D - 0.9, D - 0.55)] }));
+  layers.push(wiggle(L('shape', 'Brackets', 1.5, D - 0.3, {
+    kind: 'brackets', x: P.x, y: P.y, width: P.w + 44, height: P.h + 44, stroke: C, strokeWidth: 3, glow: 10, glowColor: C, motionBlur: true,
+  }, { scale: [k(1.5, 1.35, 'expoOut'), k(2.0, 1)], opacity: [k(1.5, 0), k(1.8, 1), ...fadeOut(D - 0.9, D - 0.55)] }), 'opacity', 7, 0.18, 11));
   layers.push(L('shape', 'HUD panel', 1.1, D - 0.2, {
     kind: 'panel', x: P.x, y: P.y, width: P.w, height: P.h, fill: '#04101d', fillAlpha: 0.84, stroke: C, strokeWidth: 2, glow: 18, glowColor: C,
+    motionBlur: true, sweepColor: C, sweepWidth: 260,
   }, {
+    glitch: [k(1.1, 0.9, 'easeOut'), k(1.55, 0, 'linear'), k(D - 0.85, 0, 'easeIn'), k(D - 0.65, 0.75, 'easeOut'), k(D - 0.35, 0)],
+    sweep: [k(2.35, 0, 'easeInOut'), k(3.2, 1)],
     width: [k(1.1, 0, 'expoOut'), k(1.5, P.w), k(D - 0.6, P.w, 'easeIn'), k(D - 0.2, 0)],
     height: [k(1.35, 4, 'expoOut'), k(1.75, P.h), k(D - 0.85, P.h, 'easeIn'), k(D - 0.6, 4)],
   }));
@@ -113,13 +123,13 @@ function makeTemplate(RT, type) {
 
   // ---- quantum arrival / departure
   layers.push(L('shape', 'Jump-out streak', D - 0.55, D, {
-    kind: 'line', x: P.x, y: P.y, width: 0, height: 6, stroke: '#ffffff', strokeWidth: 4, glow: 30, glowColor: C, blend: 'lighter',
+    kind: 'line', x: P.x, y: P.y, width: 0, height: 6, stroke: '#ffffff', strokeWidth: 4, glow: 30, glowColor: C, blend: 'lighter', motionBlur: true,
   }, { width: [k(D - 0.55, 0, 'expoOut'), k(D - 0.25, 1500)], opacity: [k(D - 0.4, 1), k(D, 0)] }));
   layers.push(L('shape', 'Arrival flash', 0.95, 1.45, {
     kind: 'circle', x: flash.x, y: flash.y, width: 120, height: 120, fill: '#ffffff', fillAlpha: 1, strokeWidth: 0, glow: 60, glowColor: C, blend: 'lighter',
   }, { scale: [k(0.95, 0.1, 'expoOut'), k(1.1, 1.6), k(1.45, 0.2)], opacity: [k(0.95, 1), k(1.45, 0)] }));
   layers.push(L('shape', 'Shockwave', 1.0, 1.9, {
-    kind: 'circle', x: flash.x, y: flash.y, width: 200, height: 200, fillAlpha: 0, stroke: C, strokeWidth: 5, glow: 24, glowColor: C, blend: 'lighter',
+    kind: 'circle', x: flash.x, y: flash.y, width: 200, height: 200, fillAlpha: 0, stroke: C, strokeWidth: 5, glow: 24, glowColor: C, blend: 'lighter', motionBlur: true,
   }, { scale: [k(1.0, 0.2, 'expoOut'), k(1.9, 4.5)], opacity: [k(1.0, 1), k(1.9, 0)] }));
   layers.push(L('particles', 'Quantum warp', 0, 1.6, {
     kind: 'warp', x: flash.x, y: flash.y, width: 1920, height: 1080, count: multi ? 160 : 120, color: '#d4f6ff', size: 3, speed: type === 'raid' ? 1.8 : 1.3, blend: 'lighter', seed: 3,

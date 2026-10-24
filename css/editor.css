@@ -116,6 +116,13 @@ body { display: grid; grid-template-rows: 46px 1fr 280px; height: 100vh; }
 .kn button:hover { color: var(--accent); }
 .kn button.k.on { color: var(--key); }
 .kn button:disabled { visibility: hidden; }
+.kn button.wig { font-size: 14px; }
+.kn button.wig.on { color: #b07bff; text-shadow: 0 0 6px #b07bff; }
+.prop.wiggling > .lbl { color: #c9a6ff; }
+.wigrow { display: flex; gap: 8px; align-items: center; margin: 0 0 6px 26px; font-size: 12px; color: #c9a6ff; }
+.wigrow label { display: flex; align-items: center; gap: 3px; color: var(--muted); }
+.wigrow input { width: 58px; }
+canvas.graph { display: block; width: 100%; max-width: 260px; border: 1px solid #5a4510; border-radius: 4px; margin: 6px 0; cursor: crosshair; touch-action: none; }
 .keybox { background: #1b1505; border: 1px solid #5a4510; border-radius: 4px; padding: 8px; margin-top: 6px; }
 .keybox h4 { margin: 0 0 6px; color: var(--key); font-size: 13px; }
 

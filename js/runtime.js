@@ -9,8 +9,27 @@ function OverlayRuntime() {
   'use strict';
 
   // ---------------------------------------------------------------- easing
+  // Cubic-bezier easing like After Effects' speed graph: handles (x1, y1) and (x2, y2), x within 0..1.
+  const bz = (t, a, b) => 3 * a * t * (1 - t) * (1 - t) + 3 * b * t * t * (1 - t) + t * t * t;
+  function cubicBezier(b, x) {
+    const x1 = Math.max(0, Math.min(1, b[0])), x2 = Math.max(0, Math.min(1, b[2]));
+    let lo = 0, hi = 1, tt = x;
+    for (let i = 0; i < 24; i++) {
+      const bx = bz(tt, x1, x2);
+      if (Math.abs(bx - x) < 1e-5) break;
+      if (bx < x) lo = tt; else hi = tt;
+      tt = (lo + hi) / 2;
+    }
+    return bz(tt, b[1], b[3]);
+  }
+  const EASY_EASE = [0.33, 0, 0.67, 1];
+  const BEZIER_PRESETS = {
+    'Easy Ease': [0.33, 0, 0.67, 1], 'Ease In': [0.6, 0, 1, 1], 'Ease Out': [0, 0, 0.4, 1],
+    'Snappy': [0.15, 0.9, 0.2, 1], 'Anticipate': [0.5, -0.4, 0.7, 1], 'Overshoot': [0.3, 0, 0.3, 1.35], 'Linear': [0, 0, 1, 1],
+  };
   const EASES = {
     linear: (p) => p,
+    easyEase: (p) => cubicBezier(EASY_EASE, p),
     hold: () => 0,
     easeIn: (p) => p * p * p,
     easeOut: (p) => 1 - Math.pow(1 - p, 3),
@@ -29,7 +48,7 @@ function OverlayRuntime() {
     },
   };
   const EASE_LABELS = {
-    linear: 'Linear', hold: 'Hold', easeIn: 'Ease In', easeOut: 'Ease Out', easeInOut: 'Ease In/Out',
+    easyEase: 'Easy Ease (F9)', bezier: 'Custom curve (graph)', linear: 'Linear', hold: 'Hold', easeIn: 'Ease In', easeOut: 'Ease Out', easeInOut: 'Ease In/Out',
     expoIn: 'Expo In', expoOut: 'Expo Out', backIn: 'Back In (anticipate)', backOut: 'Back Out (overshoot)',
     elastic: 'Elastic', bounce: 'Bounce',
   };
@@ -41,14 +60,26 @@ function OverlayRuntime() {
   const COMMON = [
     { key: 'x', label: 'Position X', type: 'num', anim: true, def: 960, step: 1 },
     { key: 'y', label: 'Position Y', type: 'num', anim: true, def: 540, step: 1 },
+    { key: 'anchorX', label: 'Anchor X', type: 'num', anim: true, def: 0, step: 1 },
+    { key: 'anchorY', label: 'Anchor Y', type: 'num', anim: true, def: 0, step: 1 },
     { key: 'scale', label: 'Scale', type: 'num', anim: true, def: 1, step: 0.01 },
+    { key: 'scaleX', label: 'Stretch X', type: 'num', anim: true, def: 1, step: 0.01 },
+    { key: 'scaleY', label: 'Stretch Y', type: 'num', anim: true, def: 1, step: 0.01 },
     { key: 'rotation', label: 'Rotation', type: 'num', anim: true, def: 0, step: 1 },
+    { key: 'skew', label: 'Skew', type: 'num', anim: true, def: 0, step: 0.5 },
     { key: 'opacity', label: 'Opacity', type: 'num', anim: true, def: 1, step: 0.01, min: 0, max: 1 },
     { key: 'blur', label: 'Blur', type: 'num', anim: true, def: 0, step: 0.5, min: 0 },
-    { key: 'glow', label: 'Glow', type: 'num', anim: true, def: 0, step: 1, min: 0 },
+    { key: 'glow', label: 'Glow (bloom)', type: 'num', anim: true, def: 0, step: 1, min: 0 },
     { key: 'glowColor', label: 'Glow color', type: 'color', def: '#3fd8ff' },
     { key: 'blend', label: 'Blend mode', type: 'select', def: 'source-over', options: BLENDS },
+    { key: 'motionBlur', label: 'Motion blur', type: 'bool', def: false },
+    { key: 'sweep', label: 'Light sweep', type: 'num', anim: true, def: 0, step: 0.01, min: 0, max: 1 },
+    { key: 'sweepColor', label: 'Sweep color', type: 'color', def: '#ffffff' },
+    { key: 'sweepWidth', label: 'Sweep width', type: 'num', def: 140, step: 5, min: 5 },
+    { key: 'glitch', label: 'Glitch', type: 'num', anim: true, def: 0, step: 0.01, min: 0, max: 1 },
   ];
+  const TRANSFORM_KEYS = ['x', 'y', 'anchorX', 'anchorY', 'scale', 'scaleX', 'scaleY', 'rotation', 'skew', 'opacity'];
+  const EFFECT_KEYS = ['blur', 'glow', 'glowColor', 'blend', 'motionBlur', 'sweep', 'sweepColor', 'sweepWidth', 'glitch'];
 
   const SCHEMA = {
     image: [
@@ -71,6 +102,11 @@ function OverlayRuntime() {
       { key: 'align', label: 'Align', type: 'select', def: 'center', options: [['left', 'Left'], ['center', 'Center'], ['right', 'Right']] },
       { key: 'tracking', label: 'Letter spacing', type: 'num', anim: true, def: 0, step: 0.5 },
       { key: 'reveal', label: 'Typewriter', type: 'num', anim: true, def: 1, step: 0.01, min: 0, max: 1 },
+      { key: 'animator', label: 'Letter animation', type: 'select', def: 'none', options: [['none', 'None'], ['decode', 'Decode (sci-fi scramble)'], ['fadeUp', 'Fade up'], ['pop', 'Pop'], ['slide', 'Slide in'], ['wave', 'Wave']] },
+      { key: 'progress', label: 'Letter progress', type: 'num', anim: true, def: 1, step: 0.01, min: 0, max: 1 },
+      { key: 'stagger', label: 'Letter stagger', type: 'num', def: 0.15, step: 0.01, min: 0, max: 1 },
+      { key: 'gradient', label: 'Gradient fill', type: 'bool', def: false },
+      { key: 'color2', label: 'Gradient bottom', type: 'color', def: '#7fd8ff' },
       { key: 'wrap', label: 'Wrap width (0 = off)', type: 'num', def: 0, step: 10, min: 0 },
       { key: 'fit', label: 'Shrink to fit width (0 = off)', type: 'num', def: 0, step: 10, min: 0 },
       { key: 'outline', label: 'Outline', type: 'num', anim: true, def: 0, step: 0.5, min: 0 },
@@ -145,7 +181,7 @@ function OverlayRuntime() {
   // ---------------------------------------------------------------- evaluation
   function fieldDef(type, key) { return SCHEMA[type].find((f) => f.key === key); }
 
-  function evalProp(layer, key, t) {
+  function keyedValue(layer, key, t) {
     const ks = layer.keys && layer.keys[key];
     if (!ks || !ks.length) {
       const v = layer.props[key];
@@ -159,11 +195,32 @@ function OverlayRuntime() {
       if (t >= a.t && t < b.t) {
         const span = b.t - a.t;
         const p = span > 0 ? (t - a.t) / span : 1;
-        const e = (EASES[a.e] || EASES.linear)(p);
+        const e = a.e === 'bezier' ? cubicBezier(a.b || EASY_EASE, p) : (EASES[a.e] || EASES.linear)(p);
         return a.v + (b.v - a.v) * e;
       }
     }
     return last.v;
+  }
+
+  // Smooth 1D value noise in -1..1, for the wiggle expression.
+  function vnoise(x, seed) {
+    const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
+    const h = (n) => { const q = Math.sin(n * 127.1 + seed * 311.7) * 43758.5453; return q - Math.floor(q); };
+    return (h(i) * (1 - u) + h(i + 1) * u) * 2 - 1;
+  }
+
+  // Keyframed value, plus wiggle(freq, amount) if the property has it (like the After Effects expression).
+  function evalProp(layer, key, t) {
+    let v = keyedValue(layer, key, t);
+    const wg = layer.wiggle && layer.wiggle[key];
+    if (wg && wg.a && typeof v === 'number') {
+      const sd = wg.s || 1;
+      v += wg.a * (vnoise(t * wg.f, sd) * 0.75 + vnoise(t * wg.f * 2.13, sd + 17) * 0.25);
+      const f = fieldDef(layer.type, key);
+      if (f && f.min != null) v = Math.max(f.min, v);
+      if (f && f.max != null) v = Math.min(f.max, v);
+    }
+    return v;
   }
 
   function evalLayer(layer, t) {
@@ -277,19 +334,6 @@ function OverlayRuntime() {
     const cutout = ready && base._cutout;
     const alpha = ready && base._alpha;
     const mask = cutout ? 'none' : v.mask;
-    if (v.glow > 0 && !cutout) {
-      maskPath(ctx, mask, w, h);
-      if (alpha) {
-        // A filled halo would show through the see-through parts, so glow along the frame's edge only.
-        ctx.strokeStyle = v.glowColor;
-        ctx.lineWidth = Math.max(2, v.border || 2);
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = v.glowColor;
-        ctx.fill();
-      }
-    }
-    if (!cutout) ctx.shadowBlur = 0;
     ctx.save();
     if (!cutout) {
       maskPath(ctx, mask, w, h);
@@ -324,7 +368,6 @@ function OverlayRuntime() {
     }
     ctx.restore();
     if (v.border > 0 && !cutout) {
-      ctx.shadowBlur = 0;
       maskPath(ctx, mask, w, h);
       ctx.lineWidth = v.border;
       ctx.strokeStyle = v.borderColor;
@@ -369,7 +412,21 @@ function OverlayRuntime() {
     return w > v.fit ? v.fit / w : 1;
   }
 
-  function drawText(ctx, v, env) {
+  const GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&@$<>/\\=+*';
+  const widthCache = new Map();
+  function charWidths(ctx, line) {
+    const key = ctx.font + '|' + (ctx.letterSpacing || '') + '|' + line;
+    let ws = widthCache.get(key);
+    if (!ws) {
+      ws = Array.from(line, (ch) => ctx.measureText(ch).width);
+      if (widthCache.size > 300) widthCache.clear();
+      widthCache.set(key, ws);
+    }
+    return ws;
+  }
+  const charHash = (n) => { const q = Math.sin(n * 91.345 + 47.853) * 43758.5453; return q - Math.floor(q); };
+
+  function drawText(ctx, v, env, t) {
     setupText(ctx, v);
     const lines = textLines(ctx, textString(v, env.vars), v.wrap);
     const k = fitScale(ctx, v, lines);
@@ -377,29 +434,88 @@ function OverlayRuntime() {
     const total = lines.reduce((n, l) => n + l.length, 0);
     let budget = v.reveal >= 1 ? Infinity : Math.floor(total * Math.max(0, v.reveal));
     const lh = v.size * 1.15;
-    let y = -(lines.length - 1) * lh / 2;
-    ctx.fillStyle = v.color;
-    ctx.lineJoin = 'round';
-    for (let i = 0; i < lines.length; i++) {
-      let line = lines[i];
-      let cursor = false;
-      if (budget !== Infinity) {
-        if (budget <= 0) break;
-        if (line.length > budget) { line = line.slice(0, budget); cursor = true; }
-        budget -= line.length;
-        if (budget === 0 && v.reveal < 1) cursor = true;
-      }
-      if (cursor) line += '▌';
-      if (v.outline > 0) {
-        ctx.lineWidth = v.outline * 2;
-        ctx.strokeStyle = v.outlineColor;
-        ctx.strokeText(line, 0, y);
-      }
-      ctx.fillText(line, 0, y);
-      y += lh;
+    const top = -(lines.length - 1) * lh / 2;
+    let fill = v.color;
+    if (v.gradient) {
+      fill = ctx.createLinearGradient(0, top - v.size * 0.45, 0, top + (lines.length - 1) * lh + v.size * 0.45);
+      fill.addColorStop(0, v.color);
+      fill.addColorStop(1, v.color2);
     }
-    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+    ctx.fillStyle = fill;
+    ctx.lineJoin = 'round';
+    const anim = v.animator && v.animator !== 'none';
+    if (!anim) {
+      let y = top;
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        let cursor = false;
+        if (budget !== Infinity) {
+          if (budget <= 0) break;
+          if (line.length > budget) { line = line.slice(0, budget); cursor = true; }
+          budget -= line.length;
+          if (budget === 0 && v.reveal < 1) cursor = true;
+        }
+        if (cursor) line += '▌';
+        if (v.outline > 0) {
+          ctx.lineWidth = v.outline * 2;
+          ctx.strokeStyle = v.outlineColor;
+          ctx.strokeText(line, 0, y);
+        }
+        ctx.fillText(line, 0, y);
+        y += lh;
+      }
+    } else {
+      // Per-letter animation (like an After Effects text animator with a range selector):
+      // each letter runs its own 0..1 animation, offset from the previous one by `stagger`.
+      const st = Math.max(0, Math.min(1, v.stagger));
+      const P = Math.max(0, Math.min(1, v.progress));
+      const span = 1 + st * Math.max(0, total - 1);
+      const fr = Math.floor((t || 0) * 24);
+      ctx.textAlign = 'center';
+      let ci = 0;
+      for (let li = 0; li < lines.length; li++) {
+        const line = lines[li], y = top + li * lh;
+        const ws = charWidths(ctx, line);
+        const lw = ws.reduce((a, b) => a + b, 0);
+        let x = v.align === 'left' ? 0 : v.align === 'right' ? -lw : -lw / 2;
+        for (let j = 0; j < line.length; j++, ci++) {
+          if (ci >= budget) return finishText(ctx);
+          const ch = line[j], cw = ws[j], cx = x + cw / 2;
+          x += cw;
+          const pc = Math.max(0, Math.min(1, P * span - st * ci));
+          if (pc <= 0 || ch === ' ') continue;
+          let glyph = ch, alpha = 1, dx = 0, dy = 0, sc = 1, rot = 0;
+          if (v.animator === 'decode') {
+            if (pc < 1) { glyph = GLYPHS[Math.floor(charHash(ci * 13.7 + fr) * GLYPHS.length)]; alpha = 0.55 + 0.45 * pc; }
+          } else if (v.animator === 'fadeUp') {
+            const e = EASES.easeOut(pc); alpha = e; dy = (1 - e) * v.size * 0.55;
+          } else if (v.animator === 'pop') {
+            sc = EASES.backOut(pc); alpha = Math.min(1, pc * 3);
+          } else if (v.animator === 'slide') {
+            const e = EASES.expoOut(pc); dx = (1 - e) * v.size * 1.6; alpha = pc; rot = (1 - e) * -0.35;
+          } else if (v.animator === 'wave') {
+            const e = EASES.easeOut(pc); alpha = e;
+            dy = Math.sin((t || 0) * 6 + ci * 0.55) * v.size * 0.1 + (1 - e) * v.size * 0.4;
+          }
+          ctx.save();
+          ctx.globalAlpha *= alpha;
+          if (sc !== 1 || rot) {
+            ctx.translate(cx + dx, y + dy);
+            if (rot) ctx.rotate(rot);
+            ctx.scale(sc, sc);
+            if (v.outline > 0) { ctx.lineWidth = v.outline * 2; ctx.strokeStyle = v.outlineColor; ctx.strokeText(glyph, 0, 0); }
+            ctx.fillText(glyph, 0, 0);
+          } else {
+            if (v.outline > 0) { ctx.lineWidth = v.outline * 2; ctx.strokeStyle = v.outlineColor; ctx.strokeText(glyph, cx + dx, y + dy); }
+            ctx.fillText(glyph, cx + dx, y + dy);
+          }
+          ctx.restore();
+        }
+      }
+    }
+    finishText(ctx);
   }
+  function finishText(ctx) { if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; }
 
   function drawShape(ctx, v, t, layer) {
     const w = Math.max(0, v.width), h = Math.max(0, v.height);
@@ -734,49 +850,285 @@ function OverlayRuntime() {
     }
   }
 
-  // Applies a layer's transform/compositing to ctx. Returns evaluated values, or null if invisible.
-  function applyLayer(ctx, layer, t) {
-    const v = evalLayer(layer, t);
-    if (v.opacity <= 0 || Math.abs(v.scale) < 1e-4) return null;
-    ctx.globalCompositeOperation = v.blend || 'source-over';
-    ctx.globalAlpha *= Math.min(1, v.opacity);
-    ctx.translate(v.x, v.y);
-    if (v.rotation) ctx.rotate(v.rotation * Math.PI / 180);
-    ctx.scale(v.scale, v.scale);
-    if (v.blur > 0) ctx.filter = 'blur(' + v.blur + 'px)';
-    if (v.glow > 0 && layer.type !== 'particles') { ctx.shadowColor = v.glowColor; ctx.shadowBlur = v.glow; }
-    return v;
-  }
-
   function layerActive(layer, t) { return !layer.hidden && t >= layer.inPoint && t < layer.outPoint; }
 
-  function applyAlertTransform(ctx, alert, W, H) {
-    const o = alert.offset || { x: 0, y: 0, scale: 1 };
-    ctx.translate(W / 2 + (o.x || 0), H / 2 + (o.y || 0));
-    ctx.scale(o.scale || 1, o.scale || 1);
-    ctx.translate(-W / 2, -H / 2);
+  // The whole alert's "Move all / Scale all" offset.
+  function alertMatrix(alert, W, H) {
+    const o = alert.offset || {};
+    return new DOMMatrix().translateSelf(W / 2 + (o.x || 0), H / 2 + (o.y || 0)).scaleSelf(o.scale || 1, o.scale || 1).translateSelf(-W / 2, -H / 2);
   }
+  function applyAlertTransform(ctx, alert, W, H) {
+    const m = alertMatrix(alert, W, H);
+    ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
+  }
+
+  // Position -> rotation -> skew -> scale/stretch -> anchor point, like an After Effects layer.
+  function localMatrix(v) {
+    return new DOMMatrix().translateSelf(v.x, v.y).rotateSelf(v.rotation || 0).skewXSelf(v.skew || 0)
+      .scaleSelf(v.scale * (v.scaleX == null ? 1 : v.scaleX), v.scale * (v.scaleY == null ? 1 : v.scaleY))
+      .translateSelf(-(v.anchorX || 0), -(v.anchorY || 0));
+  }
+  // Layer -> alert space, through its parent chain (Parent & Link).
+  function worldMatrix(layer, t, byId, depth) {
+    const m = localMatrix(evalLayer(layer, t));
+    const p = layer.parent && byId && byId[layer.parent];
+    if (p && p !== layer && (depth || 0) < 8) return worldMatrix(p, t, byId, (depth || 0) + 1).multiply(m);
+    return m;
+  }
+  function layerIndex(alert) {
+    const byId = {};
+    for (const l of alert.layers) if (l.id) byId[l.id] = l;
+    return byId;
+  }
+
+  function drawContent(g, layer, v, t, env) {
+    if (layer.type === 'image') drawImage(g, v, env, layer, t);
+    else if (layer.type === 'emote') drawEmote(g, v, t, layer);
+    else if (layer.type === 'text') drawText(g, v, env, t);
+    else if (layer.type === 'shape') drawShape(g, v, t, layer);
+    else if (layer.type === 'particles') drawParticles(g, v, t, layer);
+  }
+  // Draws a layer's pixels at time t with its full transform (opacity and blend are applied later).
+  function drawLayerAt(g, base, layer, t, env, byId, shadowGlow) {
+    const v = evalLayer(layer, t);
+    const m = base.multiply(worldMatrix(layer, t, byId));
+    g.save();
+    g.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
+    if (v.blur > 0) g.filter = 'blur(' + v.blur + 'px)';
+    // Standard quality: the classic, cheap drop-shadow glow instead of bloom.
+    if (shadowGlow && v.glow > 0 && layer.type !== 'particles') { g.shadowColor = v.glowColor; g.shadowBlur = v.glow; }
+    drawContent(g, layer, v, t, env);
+    g.restore();
+  }
+
+  // Off-screen buffers, one set per output canvas: full-size layer buffers plus a half-size bloom buffer.
+  // Effects only touch the rectangle around the layer (its "region"), which keeps them cheap.
+  function pool(ctx) {
+    const c = ctx.canvas;
+    let p = c._qpPool;
+    if (!p || p.w !== c.width || p.h !== c.height) {
+      const mk = (w, h) => { const e = document.createElement('canvas'); e.width = w; e.height = h; return e; };
+      const w = c.width, h = c.height;
+      p = c._qpPool = { w, h, L: mk(w, h), T: mk(w, h), U: mk(w, h), B: mk(Math.ceil(w / 2) + 6, Math.ceil(h / 2) + 6), C: mk(Math.ceil(w / 4) + 6, Math.ceil(h / 4) + 6) };
+      for (const k of ['L', 'T', 'U', 'B', 'C']) p[k + 'c'] = p[k].getContext('2d');
+    }
+    return p;
+  }
+  function reset(g) {
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+    g.filter = 'none';
+  }
+  function wipe(g, R) { reset(g); g.clearRect(R.x, R.y, R.w, R.h); }
+  const blit = (g, src, R, dx, dy) => g.drawImage(src, R.x, R.y, R.w, R.h, R.x + (dx || 0), R.y + (dy || 0), R.w, R.h);
+
+  // Roughly how many pixels the layer moves during one shutter interval (0 = still).
+  function motionPx(layer, t, span, byId, box) {
+    const a = worldMatrix(layer, t - span / 2, byId), b = worldMatrix(layer, t + span / 2, byId);
+    const size = Math.max(box.w, box.h) / Math.max(1e-6, box.scale);
+    let px = Math.hypot(a.e - b.e, a.f - b.f) + (Math.abs(a.a - b.a) + Math.abs(a.b - b.b) + Math.abs(a.c - b.c) + Math.abs(a.d - b.d)) * size * 0.5;
+    for (const key in layer.keys) {
+      if (!layer.keys[key].length || key === 'x' || key === 'y' || key === 'opacity' || key === 'glow' || key === 'sweep' || key === 'glitch') continue;
+      const f = fieldDef(layer.type, key);
+      const d = Math.abs(evalProp(layer, key, t - span / 2) - evalProp(layer, key, t + span / 2));
+      px = Math.max(px, f && f.max != null && f.max <= 1 ? d * 200 : d * 0.5);
+    }
+    return px * box.scale;
+  }
+
+  // Screen-space box of a layer at time t.
+  function screenBox(g, base, layer, t, env, byId) {
+    const b = layerBounds(g, layer, t, env.vars);
+    const m = base.multiply(worldMatrix(layer, t, byId));
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [x, y] of [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]]) {
+      const p = m.transformPoint(new DOMPoint(x, y));
+      x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+    }
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, scale: Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)) };
+  }
+  // The pixel rectangle a layer and its effects can reach, clamped to the canvas.
+  function regionFor(P, base, layer, v, t, env, byId, mb, glitchOn) {
+    const boxes = [screenBox(P.Tc, base, layer, t, env, byId)];
+    if (mb) {
+      boxes.push(screenBox(P.Tc, base, layer, t - SHUTTER / 2, env, byId));
+      boxes.push(screenBox(P.Tc, base, layer, t + SHUTTER / 2, env, byId));
+    }
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, sc = 1;
+    for (const b of boxes) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h); sc = Math.max(sc, b.scale); }
+    if (layer.type === 'particles') return { x: 0, y: 0, w: P.w, h: P.h };
+    // Room for things drawn past the bounds: ears/helmets, strokes, letters sliding in, blur, glow and glitch slices.
+    let pad = 6 + (v.blur || 0) * 3 + (v.glow || 0) * 1.6;
+    if (layer.type === 'text') pad += (v.size || 0) * sc * (v.animator !== 'none' && v.progress < 1 ? 1.7 : 0.35);
+    else if (layer.type === 'shape') pad += ((v.strokeWidth || 0) * 7 + (v.kind === 'ring' ? 20 : 0)) * sc;
+    else if (layer.type === 'emote') pad += (x1 - x0) * 0.25;
+    else if (layer.type === 'image') pad += ((v.border || 0) + 2) * sc;
+    if (glitchOn) pad += 110;
+    const x = Math.max(0, Math.floor(x0 - pad)), y = Math.max(0, Math.floor(y0 - pad));
+    const r = Math.min(P.w, Math.ceil(x1 + pad)), btm = Math.min(P.h, Math.ceil(y1 + pad));
+    if (!isFinite(x) || !isFinite(r) || r <= x || btm <= y) return null;
+    return { x, y, w: r - x, h: btm - y };
+  }
+
+  // CC Light Sweep: a slanted band of light crossing the layer, only where the layer has pixels.
+  function lightSweep(P, v, box, R) {
+    const g = P.Lc, w = Math.max(5, v.sweepWidth);
+    const x = box.x - w + (box.w + 2 * w) * v.sweep;
+    g.save();
+    reset(g);
+    g.beginPath(); g.rect(R.x, R.y, R.w, R.h); g.clip();
+    g.globalCompositeOperation = 'source-atop';
+    g.translate(x, box.y + box.h / 2);
+    g.rotate(0.35);
+    const gr = g.createLinearGradient(-w / 2, 0, w / 2, 0);
+    gr.addColorStop(0, hexToRgba(v.sweepColor, 0));
+    gr.addColorStop(0.5, hexToRgba(v.sweepColor, 0.85));
+    gr.addColorStop(1, hexToRgba(v.sweepColor, 0));
+    g.fillStyle = gr;
+    const reach = Math.max(box.h, box.w) * 2 + 200;
+    g.fillRect(-w / 2, -reach, w, reach * 2);
+    g.restore();
+  }
+
+  // Digital glitch: displaced slices plus an RGB channel split. Returns the canvas holding the result.
+  function glitch(P, amt, t, R) {
+    const r = mulberry(Math.floor(t * 30) * 977 + 13);
+    wipe(P.Tc, R);
+    blit(P.Tc, P.L, R);
+    const n = 3 + Math.floor(amt * 9);
+    for (let i = 0; i < n; i++) {
+      const sy = R.y + r() * R.h, sh = Math.min(R.y + R.h - sy, 4 + r() * 70 * amt), dx = Math.round((r() - 0.5) * 170 * amt);
+      if (sh <= 0) continue;
+      const S = { x: R.x, y: sy, w: R.w, h: sh };
+      P.Tc.clearRect(S.x, S.y, S.w, S.h);
+      P.Tc.save(); P.Tc.beginPath(); P.Tc.rect(R.x, R.y, R.w, R.h); P.Tc.clip();
+      blit(P.Tc, P.L, S, dx, 0);
+      P.Tc.restore();
+    }
+    wipe(P.Uc, R);
+    const off = Math.round(2 + amt * 16);
+    P.Uc.save(); P.Uc.beginPath(); P.Uc.rect(R.x, R.y, R.w, R.h); P.Uc.clip();
+    for (const [col, dx] of [['#ff0000', -off], ['#00ff00', 0], ['#0000ff', off]]) {
+      const g = P.Lc;
+      wipe(g, R);
+      blit(g, P.T, R);
+      g.globalCompositeOperation = 'multiply';
+      g.fillStyle = col;
+      g.fillRect(R.x, R.y, R.w, R.h);
+      g.globalCompositeOperation = 'destination-in';
+      blit(g, P.T, R);
+      P.Uc.globalCompositeOperation = 'lighter';
+      blit(P.Uc, P.L, R, dx, 0);
+    }
+    P.Uc.restore();
+    return P.U;
+  }
+
+  // Bloom glow, the way games do it: the layer at half size is shrunk by further halves (each 2x step averages
+  // pixels, like a mip chain), tinted, and two of the copies are stretched back up and added under the layer:
+  // a tight glow and a wide one. `paint(g, w, h)` puts the half-size layer into g, inside a 1px empty border.
+  function bloom(ctx, P, v, R, paint) {
+    const lg = (x) => Math.round(Math.log2(x));
+    const l1 = Math.max(1, Math.min(3, lg(Math.max(2, v.glow * 0.3))));
+    const l2 = Math.max(l1 + 1, Math.min(5, lg(Math.max(4, v.glow * 1.1))));
+    let from = null, fr = null, cw = R.w, ch = R.h;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.imageSmoothingEnabled = true;
+    for (let lvl = 1; lvl <= l2; lvl++) {
+      const to = lvl % 2 ? P.B : P.C, g = lvl % 2 ? P.Bc : P.Cc;
+      const w = Math.max(1, Math.ceil(cw / 2)), h = Math.max(1, Math.ceil(ch / 2));
+      reset(g);
+      // Clear one extra texel too: smoothing samples just past the copied edge, which may hold an older level.
+      g.clearRect(0, 0, w + 4, h + 4);
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = 'low';
+      if (lvl === 1) {
+        paint(g, w, h);
+        reset(g);
+        g.globalCompositeOperation = 'source-in';
+        g.fillStyle = v.glowColor;
+        g.fillRect(0, 0, w + 2, h + 2);
+      } else {
+        g.drawImage(from, fr.x, fr.y, fr.w, fr.h, 1, 1, w, h);
+      }
+      if (lvl === l1 || lvl === l2) {
+        const sx = R.w / w, sy = R.h / h;
+        ctx.globalAlpha = Math.min(1, v.opacity) * (lvl === l1 ? 0.9 : 0.65);
+        ctx.drawImage(to, 0, 0, w + 2, h + 2, R.x - sx, R.y - sy, (w + 2) * sx, (h + 2) * sy);
+      }
+      from = to; fr = { x: 1, y: 1, w, h }; cw = w; ch = h;
+    }
+    ctx.restore();
+  }
+
+  const SHUTTER = 1 / 60;   // 180 degree shutter at 30 fps, like an After Effects comp
+  const MB_SAMPLES = 6;
 
   // Layers are stored top-first (like After Effects), so draw them in reverse.
   function render(ctx, alert, t, env) {
     const W = env.width || 1920, H = env.height || 1080;
-    ctx.save();
-    applyAlertTransform(ctx, alert, W, H);
+    const byId = layerIndex(alert);
+    const t0 = ctx.getTransform();
+    const base = new DOMMatrix([t0.a, t0.b, t0.c, t0.d, t0.e, t0.f]).multiply(alertMatrix(alert, W, H));
+    // 'high' (default): motion blur + bloom. 'standard' / 'draft': drop-shadow glow, no motion blur.
+    const full = env.quality !== 'draft' && env.quality !== 'standard';
     for (let i = alert.layers.length - 1; i >= 0; i--) {
       const layer = alert.layers[i];
       if (!layerActive(layer, t)) continue;
-      ctx.save();
-      const v = applyLayer(ctx, layer, t);
-      if (v) {
-        if (layer.type === 'image') drawImage(ctx, v, env, layer, t);
-        else if (layer.type === 'emote') drawEmote(ctx, v, t, layer);
-        else if (layer.type === 'text') drawText(ctx, v, env);
-        else if (layer.type === 'shape') drawShape(ctx, v, t, layer);
-        else if (layer.type === 'particles') drawParticles(ctx, v, t, layer);
+      const v = evalLayer(layer, t);
+      if (v.opacity <= 0) continue;
+      const blend = v.blend || 'source-over';
+      let samples = 0;
+      if (full && v.motionBlur) {
+        const px = motionPx(layer, t, SHUTTER, byId, screenBox(ctx, base, layer, t, env, byId));
+        if (px > 0.8) samples = Math.max(2, Math.min(MB_SAMPLES, Math.ceil(px / 5) + 1));
       }
+      const mb = samples > 0;
+      const sweepOn = v.sweep > 0 && v.sweep < 1;
+      const glitchOn = v.glitch > 0.002;
+      const glowOn = full && v.glow > 0.5;
+      const needBuffer = mb || sweepOn || glitchOn;
+      const P = (needBuffer || glowOn) && pool(ctx);
+      const R = P && regionFor(P, base, layer, v, t, env, byId, mb, glitchOn);
+      if (R && !needBuffer) {
+        // Glow only: no full-size buffer needed. Draw the layer at half size straight into the bloom buffer.
+        bloom(ctx, P, v, R, (g) => drawLayerAt(g, new DOMMatrix().translateSelf(1 - R.x / 2, 1 - R.y / 2).scaleSelf(0.5).multiply(base), layer, t, env, byId));
+      }
+      if (!R || !needBuffer) {
+        ctx.save();
+        ctx.globalAlpha *= Math.min(1, v.opacity);
+        ctx.globalCompositeOperation = blend;
+        drawLayerAt(ctx, base, layer, t, env, byId, !full);
+        ctx.restore();
+        continue;
+      }
+      // Precompose the layer so effects apply to all of its pixels at once.
+      wipe(P.Lc, R);
+      if (mb) {
+        for (let s = 0; s < samples; s++) {
+          const ts = t + SHUTTER * (s / (samples - 1) - 0.5);
+          wipe(P.Tc, R);
+          drawLayerAt(P.Tc, base, layer, ts, env, byId);
+          P.Lc.globalAlpha = 1 / (s + 1);   // running average of the samples
+          blit(P.Lc, P.T, R);
+        }
+        P.Lc.globalAlpha = 1;
+      } else {
+        drawLayerAt(P.Lc, base, layer, t, env, byId, !full);
+      }
+      if (sweepOn) lightSweep(P, v, screenBox(P.Tc, base, layer, t, env, byId), R);
+      const src = glitchOn ? glitch(P, Math.min(1, v.glitch), t, R) : P.L;
+      if (glowOn) bloom(ctx, P, v, R, (g, w, h) => g.drawImage(src, R.x, R.y, R.w, R.h, 1, 1, w, h));
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = Math.min(1, v.opacity);
+      ctx.globalCompositeOperation = blend;
+      blit(ctx, src, R);
       ctx.restore();
     }
-    ctx.restore();
   }
 
   // Local-space bounding box {x, y, w, h} (centered at the layer anchor).
@@ -1390,7 +1742,7 @@ function OverlayRuntime() {
           current = null;
           cooldownUntil = now + (config.gap == null ? 1 : config.gap) * 1000 / rate();
         } else {
-          render(ctx, current.alert, current.t, { width: W, height: H, images, assetNames, vars: current.ev });
+          render(ctx, current.alert, current.t, { width: W, height: H, images, assetNames, vars: current.ev, quality: config.quality || 'high' });
         }
       }
       requestAnimationFrame(frame);
@@ -1401,8 +1753,8 @@ function OverlayRuntime() {
   }
 
   return {
-    EASES, EASE_LABELS, FONTS, SCHEMA, ALERT_TYPES, SAMPLE_VARS, SYNTHS, SYNTH_LABELS,
-    uid, makeLayer, fieldDef, evalProp, evalLayer, substitute, render, layerBounds, layerActive,
-    applyAlertTransform, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
+    EASES, EASE_LABELS, BEZIER_PRESETS, EASY_EASE, FONTS, SCHEMA, TRANSFORM_KEYS, EFFECT_KEYS, ALERT_TYPES, SAMPLE_VARS, SYNTHS, SYNTH_LABELS,
+    uid, makeLayer, fieldDef, evalProp, keyedValue, evalLayer, substitute, render, layerBounds, layerActive, cubicBezier,
+    alertMatrix, worldMatrix, layerIndex, applyAlertTransform, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
   };
 }

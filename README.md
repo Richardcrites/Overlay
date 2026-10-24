@@ -21,6 +21,17 @@ A small After Effects-style editor for building **animated Twitch alerts** that 
   HUD panels, corner brackets, dashed rings, and particle effects (quantum warp, starfield, sparks, paw prints, embers).
 - **Sound:** built-in sci-fi sounds (quantum jump, comm chirp, incoming hail, red alert klaxon), or upload your own,
   like **recordings of your dogs barking**.
+- **After Effects-style quality:**
+  - **Motion blur:** fast-moving layers are blurred along their path, like After Effects' motion blur switch.
+  - **Bloom glow:** a soft, layered glow instead of a flat drop shadow.
+  - **Light sweep:** a shine that passes across a layer (CC Light Sweep).
+  - **Glitch:** RGB split plus displaced slices.
+  - **Text animators:** letter-by-letter effects (decode/scramble, fade up, pop, slide in, wave) and gradient text.
+- **After Effects-style animation tools:**
+  - **Anchor point, stretch X/Y (squash and stretch), and skew.**
+  - **Parent & Link:** a layer follows another layer's position, rotation and scale.
+  - **Wiggle:** the wiggle() expression, on any property.
+  - **Graph editor:** drag bezier handles to shape a keyframe's easing, or use presets. **F9** applies Easy Ease.
 - **Animated dog emotes:** a cartoon dog face layer that animates by itself. It can wink, do a jaw-drop "pog",
   wag its tongue, show heart eyes, or wear a cool visor, with an optional space helmet. You can set the fur, ear and muzzle colors to match your dogs.
 - **Animated GIFs / WebPs:** upload your own animated emotes and they play in the alert.
@@ -135,10 +146,22 @@ Tokens expire after a while. If follow alerts stop working, connect again and re
 | Animate a property | Click ⏱, move the playhead, change the value |
 | Add/remove a keyframe at the playhead | ◇ / ◆ next to the property |
 | Change easing | Click a keyframe ◆ in the timeline → **Easing to next** |
+| Shape the curve yourself | Easing → **Custom curve (graph)**, then drag the yellow handles |
+| Easy Ease | Select a keyframe ◆ and press **F9** |
+| Wiggle a property | Click **∿** next to it, then set **Hz** (how often) and **Amount** (how far) |
+| Make a layer follow another | **Parent** at the top of the inspector. The layer won't jump. |
+| Motion blur / glow / sweep / glitch | The **Effects** section of the inspector |
+| Playback stutters while editing | Untick **Full quality** next to Play (exports aren't affected) |
 | Show a layer's keyframes | ▸ arrow next to the layer name |
 | Rename a layer | Double-click its name in the timeline |
 | Move or resize the whole alert | Alert settings → **Move all X/Y**, **Scale all** |
 | Use one design for every alert | Alert settings → **Copy design to all** (keeps each alert's own wording) |
+
+### Render quality
+
+Exports default to **High**: motion blur plus bloom glow. If OBS ever stutters while you're playing Star Citizen,
+export again with **Export overlay → Options → Render quality → Standard**. Standard uses the old lightweight glow
+and no motion blur. Everything else, including decoding text, sweeps, glitches and emotes, stays the same.
 
 ## Perfect Landing (Stream Deck alert)
 
