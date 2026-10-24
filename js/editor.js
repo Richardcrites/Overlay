@@ -386,15 +386,19 @@
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       data = /png|webp|gif/.test(file.type) ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.9);
     }
+    const transparent = RT.imageHasAlpha(await loadImg(data));
     if (!assetId) {
       assetId = RT.uid('img');
-      P.assets[assetId] = { type: 'image', name: file.name.replace(/\.[^.]+$/, '').slice(0, 30), data };
-    } else P.assets[assetId].data = data;
+      P.assets[assetId] = { type: 'image', name: file.name.replace(/\.[^.]+$/, '').slice(0, 30), data, cutout: transparent };
+    } else {
+      P.assets[assetId].data = data;
+      P.assets[assetId].cutout = transparent;
+    }
     refreshImages();
     scheduleSave();
     renderAssets();
     renderInspector();
-    toast('Image added');
+    toast(transparent ? 'Transparent photo: showing it as a cut-out with no frame. Untick "Cut-out" for the round frame.' : 'Image added', transparent ? 6000 : 2600);
     return assetId;
   }
   async function importSound(file) {
@@ -423,7 +427,7 @@
     for (const id of ['dog1', 'dog2', 'dog3']) {
       const a = P.assets[id];
       const thumb = el('div', {
-        class: 'thumb' + (a.data ? ' has' : ''), title: 'Click or drop a photo of this dog',
+        class: 'thumb' + (a.data ? ' has' : '') + (a.cutout ? ' cut' : ''), title: 'Click or drop a photo of this dog',
         style: a.data ? 'background-image:url(' + a.data + ')' : '',
         onclick: async () => { const f = await pickFile($('#fileImage')); if (f) importImage(f, id); },
       }, '\u{1F43E}');
@@ -440,6 +444,9 @@
           el('button', { onclick: async () => { const f = await pickFile($('#fileImage')); if (f) importImage(f, id); } }, a.data ? 'Replace' : 'Upload photo'),
           a.data ? el('button', { class: 'danger', onclick: () => { a.data = null; refreshImages(); scheduleSave(); renderAssets(); } }, 'Clear') : null,
         ),
+        a.data ? el('label', { class: 'cut small', title: 'For photos with the background removed: no round frame, glow follows the dog' },
+          el('input', { type: 'checkbox', checked: !!a.cutout, onchange: (e) => { a.cutout = e.target.checked; refreshImages(); scheduleSave(); markDirty(); } }),
+          ' Cut-out (no frame)') : null,
       )));
     }
     const lib = $('#library');
@@ -995,7 +1002,9 @@
     for (const id in P.assets) {
       if (!used.has(id)) continue;
       const a = P.assets[id];
-      assets[id] = a.type === 'image' && a.data ? { type: 'image', name: a.name, data: await compactImage(a.data, 320) } : { type: a.type, name: a.name, data: a.data };
+      assets[id] = a.type === 'image' && a.data
+        ? { type: 'image', name: a.name, data: await compactImage(a.data, 320), cutout: !!a.cutout }
+        : { type: a.type, name: a.name, data: a.data };
     }
     const project = { version: P.version, width: W, height: H, assets, alerts: compactAlerts() };
     const s = P.settings;

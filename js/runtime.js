@@ -55,7 +55,7 @@ function OverlayRuntime() {
       { key: 'asset', label: 'Image', type: 'asset', def: 'dog1' },
       { key: 'width', label: 'Width', type: 'num', anim: true, def: 240, step: 1, min: 0 },
       { key: 'height', label: 'Height', type: 'num', anim: true, def: 240, step: 1, min: 0 },
-      { key: 'mask', label: 'Mask', type: 'select', def: 'circle', options: [['none', 'None'], ['circle', 'Circle'], ['rounded', 'Rounded'], ['hex', 'Hexagon']] },
+      { key: 'mask', label: 'Mask', type: 'select', def: 'circle', options: [['none', 'None (no frame)'], ['circle', 'Circle'], ['rounded', 'Rounded'], ['hex', 'Hexagon']] },
       { key: 'fit', label: 'Fit', type: 'select', def: 'cover', options: [['cover', 'Fill (crop)'], ['contain', 'Fit (whole image)']] },
       { key: 'border', label: 'Border', type: 'num', anim: true, def: 0, step: 1, min: 0 },
       { key: 'borderColor', label: 'Border color', type: 'color', def: '#3fd8ff' },
@@ -270,23 +270,36 @@ function OverlayRuntime() {
   function drawImage(ctx, v, env, layer, t) {
     const w = Math.max(0, v.width), h = Math.max(0, v.height);
     if (w < 1 || h < 1) return;
-    let img = env.images && env.images[v.asset];
-    const ready = img && img.complete && img.naturalWidth > 0;
-    if (ready) img = animFrame(img, Math.max(0, t - layer.inPoint)) || img;
-    if (v.glow > 0) {
-      // Glow halo behind the masked image.
-      maskPath(ctx, v.mask, w, h);
-      ctx.fillStyle = v.glowColor;
-      ctx.fill();
+    const base = env.images && env.images[v.asset];
+    const ready = base && base.complete && base.naturalWidth > 0;
+    const img = ready ? animFrame(base, Math.max(0, t - layer.inPoint)) || base : null;
+    // Cut-out photos (transparent background) float without a frame, and the glow hugs the dog's outline.
+    const cutout = ready && base._cutout;
+    const alpha = ready && base._alpha;
+    const mask = cutout ? 'none' : v.mask;
+    if (v.glow > 0 && !cutout) {
+      maskPath(ctx, mask, w, h);
+      if (alpha) {
+        // A filled halo would show through the see-through parts, so glow along the frame's edge only.
+        ctx.strokeStyle = v.glowColor;
+        ctx.lineWidth = Math.max(2, v.border || 2);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = v.glowColor;
+        ctx.fill();
+      }
     }
-    ctx.shadowBlur = 0;
+    if (!cutout) ctx.shadowBlur = 0;
     ctx.save();
-    maskPath(ctx, v.mask, w, h);
-    ctx.clip();
+    if (!cutout) {
+      maskPath(ctx, mask, w, h);
+      ctx.clip();
+    }
     if (ready) {
       const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
-      const s = v.fit === 'contain' ? Math.min(w / iw, h / ih) : Math.max(w / iw, h / ih);
-      if (v.fit === 'contain') { ctx.fillStyle = '#06121f'; ctx.fillRect(-w / 2, -h / 2, w, h); }
+      const contain = cutout || v.fit === 'contain';
+      const s = contain ? Math.min(w / iw, h / ih) : Math.max(w / iw, h / ih);
+      if (contain && !alpha) { ctx.fillStyle = '#06121f'; ctx.fillRect(-w / 2, -h / 2, w, h); }
       ctx.drawImage(img, -iw * s / 2, -ih * s / 2, iw * s, ih * s);
     } else {
       // Placeholder until a photo is uploaded.
@@ -310,8 +323,9 @@ function OverlayRuntime() {
       ctx.fillText(name.toUpperCase(), 0, h * 0.3);
     }
     ctx.restore();
-    if (v.border > 0) {
-      maskPath(ctx, v.mask, w, h);
+    if (v.border > 0 && !cutout) {
+      ctx.shadowBlur = 0;
+      maskPath(ctx, mask, w, h);
       ctx.lineWidth = v.border;
       ctx.strokeStyle = v.borderColor;
       ctx.stroke();
@@ -1260,6 +1274,20 @@ function OverlayRuntime() {
     } catch (e) { /* plays as a still image */ }
   }
 
+  // True when a noticeable part of the image is see-through (a background-removed photo).
+  function imageHasAlpha(img) {
+    try {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 64;
+      const g = c.getContext('2d');
+      g.drawImage(img, 0, 0, 64, 64);
+      const d = g.getImageData(0, 0, 64, 64).data;
+      let clear = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] < 200) clear++;
+      return clear > 64 * 64 * 0.03;
+    } catch (e) { return false; }
+  }
+
   function loadImages(assets, cache) {
     cache = cache || {};
     const jobs = [];
@@ -1267,10 +1295,14 @@ function OverlayRuntime() {
       const a = assets[id];
       if (a.type !== 'image') continue;
       if (!a.data) { delete cache[id]; continue; }
-      if (cache[id] && cache[id]._src === a.data) continue;
+      if (cache[id] && cache[id]._src === a.data) { cache[id]._cutout = !!a.cutout; continue; }
       const img = new Image();
       img._src = a.data;
-      jobs.push(new Promise((res) => { img.onload = () => decodeAnimation(img, a.data).then(res); img.onerror = res; }));
+      img._cutout = !!a.cutout;
+      jobs.push(new Promise((res) => {
+        img.onload = () => { img._alpha = imageHasAlpha(img); decodeAnimation(img, a.data).then(res); };
+        img.onerror = res;
+      }));
       img.src = a.data;
       cache[id] = img;
     }
@@ -1371,6 +1403,6 @@ function OverlayRuntime() {
   return {
     EASES, EASE_LABELS, FONTS, SCHEMA, ALERT_TYPES, SAMPLE_VARS, SYNTHS, SYNTH_LABELS,
     uid, makeLayer, fieldDef, evalProp, evalLayer, substitute, render, layerBounds, layerActive,
-    applyAlertTransform, isAnimatedData, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
+    applyAlertTransform, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
   };
 }

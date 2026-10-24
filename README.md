@@ -32,6 +32,9 @@ A small After Effects-style editor for building **animated Twitch alerts** that 
 1. **Open the editor**: double-click `index.html`, or use your GitHub Pages link. Nothing to install.
 2. Under **Crew**, upload a photo of each dog and type their names.
    Tip: square, close-up photos of their faces look best in the round frames.
+   Got photos with the background removed (transparent PNGs)? They're detected automatically and shown as
+   **cut-outs** with no round frame, with the glow following your dog's outline. Untick **Cut-out** on the dog to put it back in the frame.
+   Free ways to remove a background: tap and hold the dog in the iPhone Photos app ("Copy subject"), Windows Photos/Paint ("Remove background"), or remove.bg.
 3. Click through the alert tabs at the top and press **Space** to play each one. Change whatever you like.
 4. Click **Export overlay** and pick one of the two ways below.
 

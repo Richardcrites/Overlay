@@ -69,6 +69,9 @@ body { display: grid; grid-template-rows: 46px 1fr 280px; height: 100vh; }
 }
 .thumb:hover, .thumb.drag { border-color: var(--accent); }
 .thumb.has { border-style: solid; border-color: var(--accent); font-size: 0; }
+.thumb.cut { border-radius: 8px; background-size: contain; }
+.crew-card .cut { display: flex; align-items: center; gap: 5px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.crew-card .meta .cut input { width: auto; margin: 0; }
 .crew-card .meta { display: flex; flex-direction: column; gap: 4px; }
 .crew-card .meta input { width: 100%; }
 .crew-card .meta .row { margin: 0; }
