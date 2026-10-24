@@ -826,6 +826,20 @@ function OverlayRuntime() {
   // StreamElements handles the Twitch login and sends every event to the widget, follows included.
   function StreamElementsEvents(onEvent, opts) {
     opts = opts || {};
+    // StreamElements reports a cheer through 'cheer-latest' and through the general 'event' listener.
+    // 'cheer-latest' is skipped when nothing changes (same viewer cheering the same amount again),
+    // so listen to both and pair them up so each real cheer plays exactly once.
+    const unmatched = { latest: [], event: [] };
+    function cheerOnce(src, ev) {
+      const now = Date.now();
+      const key = String(ev.user || '').toLowerCase() + '|' + ev.bits;
+      for (const k in unmatched) unmatched[k] = unmatched[k].filter((p) => now - p.at < 5000);
+      const other = unmatched[src === 'latest' ? 'event' : 'latest'];
+      const i = other.findIndex((p) => p.key === key);
+      if (i >= 0) { other.splice(i, 1); return; } // same cheer, already played via the other listener
+      unmatched[src].push({ key, at: now });
+      onEvent(ev);
+    }
     window.addEventListener('onEventReceived', (obj) => {
       const d = (obj && obj.detail) || {};
       const ev = d.event || {};
@@ -838,7 +852,11 @@ function OverlayRuntime() {
         else if (ev.gifted) onEvent({ type: 'giftsub', user: ev.sender || 'An anonymous pilot', recipient: ev.name, tier });
         else if ((parseInt(ev.amount, 10) || 1) > 1) onEvent({ type: 'resub', user: ev.name, months: String(ev.amount), tier, message: ev.message || '' });
         else onEvent({ type: 'sub', user: ev.name, tier });
-      } else if (L === 'cheer-latest') onEvent({ type: 'cheer', user: ev.name, bits: String(ev.amount), message: ev.message || '' });
+      } else if (L === 'cheer-latest') cheerOnce('latest', { type: 'cheer', user: ev.name, bits: String(ev.amount), message: ev.message || '' });
+      else if (L === 'event' && ev.type === 'cheer') {
+        const dd = ev.data || ev;
+        cheerOnce('event', { type: 'cheer', user: dd.displayName || dd.username || dd.name, bits: String(dd.amount), message: dd.message || '' });
+      }
       else if (L === 'raid-latest') onEvent({ type: 'raid', user: ev.name, viewers: String(ev.amount) });
       else if (L === 'message' && opts.chatTest && ev.data) {
         const text = ev.data.text || '';
