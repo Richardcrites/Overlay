@@ -1822,7 +1822,7 @@ function OverlayRuntime() {
   }
   function sbText(d) {
     if (typeof d.message === 'string') return d.message;
-    if (d.message && typeof d.message === 'object') return d.message.message || d.message.text || '';
+    if (d.message && typeof d.message === 'object' && (d.message.message || d.message.text)) return d.message.message || d.message.text;
     return d.text || d.userInput || '';
   }
 
@@ -1877,10 +1877,15 @@ function OverlayRuntime() {
           message: d.user_input || d.userInput || d.input || '' });
       }
       else if (type === 'ChatMessage' && opts.onTest) {
-        const m = d.message && typeof d.message === 'object' ? d.message : d;
-        const text = sbText(d);
-        const role = parseInt(m.role, 10) || 0; // 3 = moderator, 4 = broadcaster
-        if (/^!testalert\b/i.test(text) && (role >= 3 || m.isModerator || m.isBroadcaster)) opts.onTest((text.split(/\s+/)[1] || 'follow').toLowerCase());
+        // Streamer.bot 0.2 nests the chatter in data.message; 1.0 uses data.user and data.text.
+        const m = d.message && typeof d.message === 'object' ? d.message : {};
+        const u = d.user && typeof d.user === 'object' ? d.user : {};
+        const text = sbText(d).trim();
+        const role = Math.max(parseInt(m.role, 10) || 0, parseInt(u.role, 10) || 0, parseInt(d.role, 10) || 0); // 3 = moderator, 4 = broadcaster
+        const badges = [].concat(m.badges || [], u.badges || [], d.badges || []).map((b) => String((b && (b.name || b.setId || b.set_id)) || b).toLowerCase());
+        const boss = role >= 3 || m.isModerator || m.isBroadcaster || u.isModerator || u.isBroadcaster || d.isModerator || d.isBroadcaster ||
+          badges.some((b) => /^(broadcaster|moderator)/.test(b));
+        if (/^!testalert\b/i.test(text) && boss) opts.onTest((text.split(/\s+/)[1] || 'follow').toLowerCase());
       }
     }
 
