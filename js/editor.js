@@ -115,6 +115,13 @@
       }
       p.deskDog = true;
     }
+    // One time: Raid becomes the raid sign video (keeps its sound and on/off).
+    if (!p.raidSign) {
+      const old = p.alerts.raid, fresh = base.alerts.raid;
+      if (old) { fresh.enabled = old.enabled; if (old.sound && old.sound.asset) fresh.sound = old.sound; }
+      p.alerts.raid = fresh;
+      p.raidSign = true;
+    }
     // One time: turn the Redeem alert off (it can be ticked back on under Alert settings).
     if (!p.redeemOff) { if (p.alerts.redeem) p.alerts.redeem.enabled = false; p.redeemOff = true; }
     p.width = W; p.height = H;

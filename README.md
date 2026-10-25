@@ -172,9 +172,13 @@ and no motion blur. Everything else, including decoding text, sweeps, glitches a
 ## Standard alert: the dog at his desk (master clip)
 
 `video/desk-dog.webm` is the master look: the dog at his desk facing you, grinning and waving a paw, a seamless 6 s
-loop (green screen removed, nothing else changed). Follow, Sub, Resub, Gift Sub, Gift Bomb, Donation, Raid and Redeem
+loop (green screen removed, nothing else changed). Follow, Sub, Resub, Gift Sub, Gift Bomb, Donation and Redeem
 use it, with the words in a white speech bubble beside his head. **Cheer** is the same scene with coins raining down,
 colour-matched to the master, and **Bezo's Bucks** keeps its own bald-cap clip.
+
+**Raid** uses `video/raid-dog.webm`: he holds up a sign that reads *WELCOME RAIDERS!*, the raider's name and how many
+pilots they brought (the words follow the sign), then *Let's throw some ass!* pops up in his bubble. To change the
+sign, click the **Sign text** layer on the Raid tab.
 
 New clips should match this one: give your video generator a frame of it as the first frame or reference image.
 The older typing dog is still under **Alert settings → Template → Typing dog (side view)**.

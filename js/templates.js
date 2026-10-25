@@ -28,6 +28,8 @@ const BUBBLE_TEXT = {
   redeem: '[c=' + PINK + ']{user}[/c] used {reward}!',
   raid: '[c=' + PINK + ']{user}[/c] is raiding! Let\'s throw some ass!',
 };
+// What's written on the raid sign (a line break starts a new line).
+const SIGN_TEXT = { raid: 'WELCOME RAIDERS!\n[c=' + PINK + ']{user}[/c]\n+{viewers} {viewers:pilot|pilots}' };
 const HAS_MESSAGE = { resub: true, primesub: true, cheer: true, tip: true, redeem: true };
 // The sound bites each alert plays (from the user's old StreamElements alerts), in sounds/.
 const DEFAULT_SOUND = { follow: 'snd_follower', sub: 'snd_sub', resub: 'snd_sub', primesub: 'snd_sub', giftsub: 'snd_sub', giftbomb: 'snd_sub', cheer: 'snd_bits', tip: 'snd_donation', raid: 'snd_raid' };
@@ -138,6 +140,10 @@ function makeVideoTemplate(RT, type) {
 // bubble: where it sits in the video's own pixels, from the centre (the bubble is parented to the video).
 const DESK_DOG = { asset: 'vid_desk', w: 1280, h: 720, duration: 6, bubble: { x: 420, y: -250, w: 440 } };
 const COIN_DOG = { asset: 'vid_coins', w: 1280, h: 720, duration: 6, bubble: { x: 330, y: -235, w: 470 } };
+// video/raid-dog.webm (Raid): the desk dog holds up a blank sign (Kling clip, watermark removed, colour-matched to the
+// master). 5 s. Where the sign is in each frame while it's up: [frame (24 fps), centre x, centre y, width, angle].
+const RAID_SIGN = [[19, 497.5, 506.4, 309.5, -0.97], [21, 500.5, 492.4, 306.2, 0.3], [23, 500.0, 496.0, 306.0, 0.0], [25, 500.5, 500.5, 307.0, 0.0], [27, 500.5, 503.5, 307.8, -0.34], [29, 500.5, 503.0, 309.0, 0.0], [31, 500.5, 503.5, 309.0, 0.0], [33, 500.5, 503.5, 309.0, 0.0], [35, 500.5, 503.5, 309.0, 0.0], [37, 500.0, 504.0, 308.9, -0.3], [39, 500.0, 504.0, 309.1, -0.26], [41, 500.0, 504.5, 309.2, -0.24], [43, 499.5, 504.5, 310.2, -0.22], [45, 499.5, 504.5, 310.2, -0.23], [47, 499.5, 504.6, 310.2, -0.24], [49, 499.5, 505.1, 310.2, -0.24], [51, 499.5, 505.0, 311.0, 0.0], [53, 499.0, 505.0, 312.0, 0.0], [55, 499.0, 505.0, 312.0, 0.0], [57, 499.0, 505.5, 312.0, 0.0], [59, 498.6, 506.0, 311.9, -0.33], [61, 498.6, 506.0, 312.0, -0.29], [63, 498.6, 506.0, 312.1, -0.28], [65, 498.5, 506.5, 312.2, -0.25], [67, 498.5, 506.5, 312.3, -0.23], [69, 498.1, 506.5, 313.2, -0.23], [71, 498.1, 506.5, 313.3, -0.21]];
+const RAID_DOG = { asset: 'vid_raid', w: 1280, h: 720, duration: 5, bubble: { x: 420, y: -250, w: 440 }, bubbleIn: 3.15, sign: RAID_SIGN, says: 'Let\'s throw some ass!' };
 function makeDeskTemplate(RT, type, V) {
   const D = V.duration, k = kf, L = layerMaker(RT), INK = '#15100c', B = V.bubble;
   const pop = (t0, t1) => [k(t0, 0, 'backOut'), k(t0 + 0.3, 1, 'linear'), k(t1 - 0.25, 1, 'backIn'), k(t1, 0)];
@@ -146,16 +152,33 @@ function makeDeskTemplate(RT, type, V) {
     opacity: [k(0, 0, 'linear'), k(0.2, 1, 'linear'), k(D - 0.35, 1, 'linear'), k(D, 0)],
   });
   // In the video's own pixels, centred on it (parented): up and to the right of his head.
-  const bubble = L('shape', 'Speech bubble', 0.45, D - 0.45, {
+  const b0 = V.bubbleIn || 0.45;
+  const bubble = L('shape', 'Speech bubble', b0, D - 0.45, {
     kind: 'bubble', tail: 'left', x: B.x, y: B.y, width: B.w, height: 132, fill: '#ffffff', fillAlpha: 1, stroke: INK, strokeWidth: 4, wobble: 0.3,
-  }, { scale: pop(0.45, D - 0.45) });
-  const words = L('text', 'Bubble text', 0.45, D - 0.45, {
-    text: BUBBLE_TEXT[type], font: 'Patrick Hand', size: 42, weight: '400', color: INK, x: B.x, y: B.y, align: 'center',
+  }, { scale: pop(b0, D - 0.45) });
+  const words = L('text', 'Bubble text', b0, D - 0.45, {
+    text: V.says || BUBBLE_TEXT[type], font: 'Patrick Hand', size: 42, weight: '400', color: INK, x: B.x, y: B.y, align: 'center',
     wrap: B.w - 50, fit: B.w - 50, fitHeight: 104,
-  }, { reveal: [k(0.65, 0, 'linear'), k(1.55, 1)], scale: pop(0.45, D - 0.45) });
+  }, { reveal: [k(b0 + 0.2, 0, 'linear'), k(b0 + 1.1, 1)], scale: pop(b0, D - 0.45) });
   bubble.parent = vid.id;
   words.parent = vid.id;
   const layers = [];
+  if (V.sign) {
+    // Words written on the sign he holds up, following it (in the video's pixels, parented to it).
+    const sg = V.sign, fps = 24, at = (f) => Math.round(f / fps * 1000) / 1000;
+    const track = (fn) => sg.map((f) => ({ t: at(f[0]), v: Math.round(fn(f) * 1000) / 1000, e: 'linear' }));
+    const t0 = at(sg[0][0]), t1 = at(sg[sg.length - 1][0]);
+    const sign = L('text', 'Sign text', 0, D, {
+      text: SIGN_TEXT[type] || SIGN_TEXT.raid, font: 'Patrick Hand', size: 50, weight: '400', color: INK, align: 'center',
+      wrap: 250, fit: 250, fitHeight: 185,
+    }, {
+      x: track((f) => f[1] - V.w / 2), y: track((f) => f[2] - V.h / 2), scale: track((f) => f[3] / 310), rotation: track((f) => f[4]),
+      opacity: [k(0, 0, 'hold'), k(t0, 0, 'linear'), k(t0 + 0.12, 1, 'hold'), k(t1 - 0.12, 1, 'linear'), k(t1, 0, 'hold')],
+      reveal: [k(t0 + 0.1, 0, 'linear'), k(t0 + 0.9, 1)],
+    });
+    sign.parent = vid.id;
+    layers.push(sign);
+  }
   if (HAS_MESSAGE[type]) {
     layers.push(L('text', 'Message', 1.2, D - 0.5, {
       text: '{message}', font: 'Patrick Hand', size: 30, weight: '400', color: INK, x: 790, y: 492, align: 'center', fit: 420, onlyIf: 'message',
@@ -180,6 +203,7 @@ function buildTemplate(RT, type, style) {
   if (style === 'video') {
     if (type === 'cheer') return makeDeskTemplate(RT, type, COIN_DOG);
     if (type === 'primesub') return makeVideoTemplate(RT, type);
+    if (type === 'raid') return makeDeskTemplate(RT, type, RAID_DOG);
     return makeDeskTemplate(RT, type, DESK_DOG);
   }
   if (style === 'typing') return Object.assign(makeVideoTemplate(RT, type), { style: 'typing' });
@@ -323,6 +347,7 @@ function makeProject(RT) {
     redeemOff: true,
     cheerCoins: true,
     deskDog: true,
+    raidSign: true,
     templateVersion: TEMPLATE_VERSION,
     soundsDone: Object.keys(DEFAULT_SOUND),
     width: 1920,
@@ -333,6 +358,7 @@ function makeProject(RT) {
       dog3: { type: 'image', name: 'Dog 3', data: null, crew: true },
       vid_typingtrim: { type: 'video', name: 'Typing dog', data: null, builtin: 'video/typing-dog-trimmed.webm' },
       vid_desk: { type: 'video', name: 'Desk dog (master)', data: null, builtin: 'video/desk-dog.webm' },
+      vid_raid: { type: 'video', name: 'Raid sign dog', data: null, builtin: 'video/raid-dog.webm' },
       vid_coins: { type: 'video', name: 'Coin rain dog', data: null, builtin: 'video/coin-dog.webm' },
       vid_prime: { type: 'video', name: "Bezo's Bucks dog", data: null, builtin: 'video/prime-dog.webm' },
       snd_follower: { type: 'sound', name: 'Follower', data: null, builtin: 'sounds/follower.mp3' },
