@@ -189,6 +189,35 @@ bubble as it pops in, wiggles and pops out:
 To change the words, click the **Bubble text** layer. He sits in the bottom-right corner (the monitor's cut-off edge lines up with the screen edge); move it with
 **Alert settings → Move all X/Y** or **Scale all**.
 
+### Cheer: the coin rain dog
+
+Cheers play `video/coin-dog.webm`: coins rain down while he grins and winks, with the words in a bubble beside his
+head. The clip was colour-matched to the typing dog (same tan coat, most of its leopard speckles smoothed out, bolder
+outlines). It plays the Bits sound.
+
+## Paint & redraw (fix the art yourself)
+
+Click a **video** layer, then **Open paint tools** in the inspector (right). You paint straight onto the video, and the
+fixes play in your overlay too (nothing is re-rendered):
+
+| Brush | What it does |
+|---|---|
+| **Recolor** | changes the colour but keeps his drawn shading and lines (use it with the palette) |
+| **Smooth** | blurs what's under it: wipes out spots and blotches |
+| **Cover dark spots** | covers anything darker than the colour (e.g. Coat tan over speckles) |
+| **Darken lines / shadow** | deepens ink and shadows |
+| **Paint** / **Erase** | plain colour / cut the video away |
+| **Move fix** | drag the fix at another frame; it glides between the frames you set (like position keyframes) |
+| **Eyedropper** | pick any colour on the canvas, the guide picture included |
+
+- **Fixes:** every stroke goes in a *fix* that shows for a stretch of the video (**Start here**, **End here**, **This frame
+  only**, **Whole video**). Because he moves, use **Move fix** every half second or so to keep it on him.
+- **Drawing guide:** the **Dog palette** swatches (tan, cream, grizzle, saddle, ink, headband red...; **+** adds your own),
+  and a **Guide picture**: another dog video or your photos (add them with **+ Image**), shown beside the video or
+  traced over it. Scrub a guide video to the frame you want to copy.
+- **Hold: before** shows the video without your fixes. **[** and **]** change the brush size. Ctrl+Z undoes.
+- **Stay inside his outline** (on by default) keeps paint off the transparent background.
+
 ### Bezo's Bucks (Prime subs)
 
 Prime subs and Prime resubs play the **Bezo's Bucks** alert instead of Sub/Resub: the dog in a bald cap and headband
@@ -203,7 +232,7 @@ Your StreamElements sound bites are in `sounds/` and already set on each alert (
 |---|---|
 | `follower.mp3` | Follow |
 | `sub.ogg` | Sub, Resub, Bezo's Bucks, Gift Sub, Gift Bomb |
-| `bits.mp3` | Cheer |
+| `bits.mp3` | Cheer (coin rain) |
 | `donation.mp3` | Donation |
 | `raid.mp3` | Raid |
 

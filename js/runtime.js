@@ -139,6 +139,7 @@ function OverlayRuntime() {
       { key: 'keyColor', label: 'Key color', type: 'color', def: '#16be28' },
       { key: 'keyTolerance', label: 'Key tolerance', type: 'num', def: 0.3, step: 0.01, min: 0, max: 1 },
       { key: 'keySoftness', label: 'Key edge softness', type: 'num', def: 0.12, step: 0.01, min: 0.01, max: 1 },
+      { key: 'paint', label: 'Paint fixes', type: 'paint', def: [] }, // see paintedFrame
     ],
     mascot: [
       { key: 'pose', label: 'Pose', type: 'select', def: 'idle', options: [['idle', 'Idle (blinks, ear twitches)'], ['excited', 'Excited (bouncy, happy eyes)']] },
@@ -215,7 +216,7 @@ function OverlayRuntime() {
 
   function makeLayer(type, name, props, extra) {
     const p = {};
-    for (const f of SCHEMA[type]) p[f.key] = f.def;
+    for (const f of SCHEMA[type]) p[f.key] = Array.isArray(f.def) ? f.def.slice() : f.def;
     Object.assign(p, props || {});
     return Object.assign({ id: uid('l'), name: name || type, type, inPoint: 0, outPoint: 6, hidden: false, locked: false, props: p, keys: {} }, extra || {});
   }
@@ -851,8 +852,8 @@ function OverlayRuntime() {
             vid.play().then(done, done);
           });
         } else done();
-      } else if (!vid._qpStarting && Math.abs(vid.currentTime - want) > 0.25) vid.currentTime = want;
-      else if (Math.abs(vid.currentTime - want) > 0.25) vid.currentTime = want;
+      } else if (!vid._qpStarting && !vid.seeking && vid.readyState >= 2 && Math.abs(vid.currentTime - want) > 0.5) vid.currentTime = want;
+      // (re-syncing while it's still seeking or buffering would keep it from ever showing a frame on a slow PC)
     } else {
       if (!vid.paused) vid.pause();
       if (Math.abs(vid.currentTime - want) > 0.02 && !vid.seeking) {
@@ -892,11 +893,105 @@ function OverlayRuntime() {
     return c;
   }
 
+  // ---------------------------------------------------------------- paint fixes on a video
+  // A fix is a group of brush strokes on the video, shown from t0 to t1 (seconds of the video itself), that
+  // can be moved over time with position keys to follow what's under it:
+  //   { id, name, t0, t1, hidden, keys: [{ t, x, y }], strokes: [{ mode, color, size, opacity, soft, free, pts: [x, y, ...] }] }
+  // Points are in the video's own pixels. Modes:
+  //   paint    plain colour                      recolor  the colour, keeping the drawing's shading (like a 'Color' blend)
+  //   smooth   blurs what's under it (spots)     lighten  covers anything darker than the colour
+  //   darken   multiplies (deeper ink/shadow)   erase    cuts the video away
+  // Strokes stay inside the video's own outline unless `free` is set.
+  const PAINT_MODES = [['paint', 'Paint'], ['recolor', 'Recolor (keeps shading)'], ['smooth', 'Smooth (wipe out spots)'],
+    ['lighten', 'Cover dark spots'], ['darken', 'Darken lines / shadow'], ['erase', 'Erase']];
+  const PAINT_OP = { paint: 'source-over', recolor: 'color', smooth: 'source-over', lighten: 'lighten', darken: 'multiply', erase: 'destination-out' };
+  function fixOffset(fix, vt) {
+    const ks = fix.keys;
+    if (!ks || !ks.length) return [0, 0];
+    if (vt <= ks[0].t) return [ks[0].x, ks[0].y];
+    for (let i = 0; i < ks.length - 1; i++) {
+      const a = ks[i], b = ks[i + 1];
+      if (vt < b.t) { const p = (vt - a.t) / ((b.t - a.t) || 1); return [a.x + (b.x - a.x) * p, a.y + (b.y - a.y) * p]; }
+    }
+    const l = ks[ks.length - 1];
+    return [l.x, l.y];
+  }
+  function fixActive(fix, vt) { return !fix.hidden && vt >= fix.t0 - 1e-3 && vt <= fix.t1 + 1e-3; }
+  function strokePath(g, st, dx, dy) {
+    const p = st.pts;
+    g.beginPath();
+    g.moveTo(p[0] + dx, p[1] + dy);
+    if (p.length === 2) g.lineTo(p[0] + dx + 0.01, p[1] + dy);
+    for (let i = 2; i < p.length; i += 2) g.lineTo(p[i] + dx, p[i + 1] + dy);
+  }
+  function scratch(owner, key, w, h) {
+    let c = owner[key];
+    if (!c || c.width !== w || c.height !== h) { c = owner[key] = document.createElement('canvas'); c.width = w; c.height = h; c._g = c.getContext('2d'); }
+    return c;
+  }
+  // The video frame with the paint fixes applied, redone only when the frame or the paint changes.
+  function paintedFrame(src, vid, v, env) {
+    const w = src.videoWidth || src.width, h = src.videoHeight || src.height;
+    const vt = vid.currentTime;
+    const fixes = v.paint.filter((f) => f.strokes && f.strokes.length && fixActive(f, vt));
+    if (!fixes.length || env.paintOff) return src;
+    const out = scratch(vid, '_qpPaint', w, h), g = out._g;
+    const rev = v.paint._rev || 0;
+    if (out._sig === vt && out._arr === v.paint && out._rev === rev && out._src === src) return out;
+    out._sig = vt; out._arr = v.paint; out._rev = rev; out._src = src;
+    const tmp = scratch(vid, '_qpPaintTmp', w, h), tg = tmp._g;
+    const free = [];
+    g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, w, h);
+    g.drawImage(src, 0, 0, w, h);
+    const stroke = (st, dx, dy, into) => {
+      tg.save();
+      tg.globalCompositeOperation = 'source-over';
+      tg.clearRect(0, 0, w, h);
+      tg.lineCap = tg.lineJoin = 'round';
+      tg.lineWidth = Math.max(1, st.size || 20);
+      tg.strokeStyle = st.color || '#000';
+      if (st.soft > 0) tg.filter = 'blur(' + Math.round(st.soft * st.size * 0.35) + 'px)';
+      strokePath(tg, st, dx, dy);
+      tg.stroke();
+      tg.filter = 'none';
+      if (st.mode === 'smooth') {
+        // fill the stroke with a blurred copy of what's under it
+        tg.globalCompositeOperation = 'source-in';
+        tg.filter = 'blur(' + Math.max(2, Math.round(st.size * 0.22)) + 'px)';
+        tg.drawImage(out, 0, 0);
+        tg.filter = 'none';
+      }
+      tg.restore();
+      into.save();
+      into.globalAlpha = st.opacity == null ? 1 : st.opacity;
+      into.globalCompositeOperation = PAINT_OP[st.mode] || 'source-over';
+      into.drawImage(tmp, 0, 0);
+      into.restore();
+    };
+    for (const fix of fixes) {
+      const [dx, dy] = fixOffset(fix, vt);
+      for (const st of fix.strokes) {
+        if (!st.pts || st.pts.length < 2) continue;
+        if (st.free && st.mode !== 'erase') free.push([st, dx, dy]); else stroke(st, dx, dy, g);
+      }
+    }
+    // keep the video's own outline (and anything erased stays erased)
+    g.save();
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(src, 0, 0, w, h);
+    g.restore();
+    for (const [st, dx, dy] of free) stroke(Object.assign({}, st, { mode: st.mode === 'smooth' ? 'paint' : st.mode }), dx, dy, g);
+    return out;
+  }
+
   function drawVideo(ctx, v, env, layer) {
     const w = Math.max(0, v.width), h = Math.max(0, v.height);
     if (w < 1 || h < 1) return;
     const vid = env.videos && env.videos[v.asset];
     if (!vid || vid.readyState < 2) {
+      // on stream, a video that's still loading just isn't drawn yet
+      if (!env.placeholders) { if (vid) syncVideo(vid, v, layer, env); return; }
       ctx.fillStyle = 'rgba(10,20,35,0.6)';
       ctx.fillRect(-w / 2, -h / 2, w, h);
       ctx.fillStyle = '#9fe8ff';
@@ -909,7 +1004,9 @@ function OverlayRuntime() {
     }
     syncVideo(vid, v, layer, env);
     ctx.shadowBlur = 0;
-    ctx.drawImage(v.chroma ? keyedFrame(vid, v) : vid, -w / 2, -h / 2, w, h);
+    let src = v.chroma ? keyedFrame(vid, v) : vid;
+    if (v.paint && v.paint.length) src = paintedFrame(src, vid, v, env);
+    ctx.drawImage(src, -w / 2, -h / 2, w, h);
   }
 
   function loadVideos(assets, cache) {
@@ -2231,6 +2328,6 @@ function OverlayRuntime() {
   return {
     EASES, EASE_LABELS, BEZIER_PRESETS, EASY_EASE, FONTS, SCHEMA, TRANSFORM_KEYS, EFFECT_KEYS, ALERT_TYPES, SAMPLE_VARS, SYNTHS, SYNTH_LABELS,
     uid, makeLayer, fieldDef, evalProp, keyedValue, evalLayer, substitute, render, layerBounds, layerActive, cubicBezier,
-    alertMatrix, worldMatrix, layerIndex, StreamerbotEvents, applyAlertTransform, MASCOT_LOOP, loadVideos, stopVideos, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
+    alertMatrix, worldMatrix, layerIndex, StreamerbotEvents, PAINT_MODES, fixOffset, fixActive, applyAlertTransform, MASCOT_LOOP, loadVideos, stopVideos, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
   };
 }

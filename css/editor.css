@@ -201,3 +201,19 @@ dialog a { color: var(--accent); }
 .sblog { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 6px 8px; max-height: 160px; overflow: auto; font-family: 'Share Tech Mono', monospace; }
 .sblog .bad { color: #ff8a8a; }
 .sblog .good { color: #5cffb0; }
+
+/* paint & redraw */
+section.paint h4 { margin: 10px 0 4px; font-size: 13px; color: var(--accent, #3fd8ff); }
+.paint-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 6px 0; }
+.paint-tools button { font-size: 12px; padding: 5px 6px; text-align: left; }
+.paint-tools button.active { background: #ffc94a; color: #1b1505; border-color: #ffc94a; }
+.swatches { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 8px; }
+.swatch { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); }
+.swatch.on { border-color: #ffc94a; box-shadow: 0 0 0 2px #ffc94a; }
+.swatch.add { background: transparent; color: #fff; font-weight: 700; line-height: 20px; }
+.fix { display: flex; gap: 6px; align-items: center; padding: 3px 4px; border-radius: 4px; }
+.fix.on { background: rgba(255,201,74,.15); }
+.fix.off .name { opacity: .55; }
+.fix .name { flex: 1; text-align: left; background: transparent; border: 0; padding: 2px 0; }
+.fix button { padding: 2px 6px; font-size: 12px; }
+#canvasWrap canvas.painting { cursor: crosshair; }

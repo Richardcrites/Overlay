@@ -68,6 +68,7 @@
   const S = {
     type: 'follow', sel: null, selKey: null, time: 0, playing: false, expanded: new Set(),
     vars: clone(RT.SAMPLE_VARS), dirty: true, bg: 'space', stopSound: null,
+    paint: null, // paint tools open on a video layer: { layerId, tool, color, size, opacity, soft, free, fixId, ref, refMode, refOpacity, refTime }
   };
   let images = {};
   const alertObj = () => P.alerts[S.type];
@@ -300,9 +301,10 @@
     const draft = S.playing && !$('#chkQuality').checked;
     RT.render(ctx, al, S.time, {
       width: W, height: H, images, videos, assetNames: assetNames(), vars: S.vars[S.type], quality: draft ? 'draft' : 'full',
-      playing: S.playing, audio: S.playing && $('#chkSound').checked, masterVolume: P.settings.volume, onVideoSeek: markDirty,
+      playing: S.playing, audio: S.playing && $('#chkSound').checked, masterVolume: P.settings.volume, onVideoSeek: markDirty, paintOff: !!S.paintOff, placeholders: true,
     });
-    drawSelection();
+    if (!paintLayer()) drawSelection();
+    drawPaintGuide();
   }
 
   // Layer content space -> canvas pixels.
@@ -376,6 +378,7 @@
 
   cv.addEventListener('pointerdown', (e) => {
     if (S.playing) pause();
+    if (paintLayer()) { paintPointer(e); return; }
     const pt = canvasPoint(e);
     const L = hitTest(pt);
     selectLayer(L ? L.id : null);
@@ -404,9 +407,245 @@
     cv.addEventListener('pointerup', up);
   });
   cv.addEventListener('pointermove', (e) => {
+    cv.classList.toggle('painting', !!paintLayer());
+    if (paintLayer()) { S.paintCursor = canvasPoint(e); markDirty(); }
     if (e.buttons) return;
-    cv.classList.toggle('grab', !!hitTest(canvasPoint(e)));
+    cv.classList.toggle('grab', !paintLayer() && !!hitTest(canvasPoint(e)));
   });
+  cv.addEventListener('pointerleave', () => { if (S.paintCursor) { S.paintCursor = null; markDirty(); } });
+
+  // ---------------------------------------------------------------- paint & redraw (fixes painted onto a video)
+  // Colours from the cartoon dog (matched to the typing dog) and the real dog's photos.
+  const DOG_PALETTE = [
+    ['Coat tan', '#b4926a'], ['Light tan', '#cfae82'], ['Cream chest', '#e9dcc4'], ['Grizzle grey', '#8f8273'],
+    ['Saddle / tail', '#4a3b30'], ['Ear brown', '#6b4f3a'], ['Ink lines', '#1c1512'], ['Eye brown', '#7a4a22'],
+    ['Headband red', '#d8352b'], ['Tongue pink', '#e8828f'], ['Bubble white', '#ffffff'],
+  ];
+  const PAINT_TOOLS = RT.PAINT_MODES.concat([['move', 'Move fix (follow him)'], ['pick', 'Eyedropper']]);
+  function paintLayer() {
+    const L = selLayer();
+    return S.paint && L && L.id === S.paint.layerId && L.type === 'video' && !S.playing ? L : null;
+  }
+  function paintVideo(L) { return videos[L.props.asset]; }
+  // the alert's playhead -> seconds into the video itself
+  function videoTime(L) {
+    const vid = paintVideo(L);
+    let t = Math.max(0, S.time - L.inPoint) + (L.props.startAt || 0);
+    if (vid && isFinite(vid.duration) && vid.duration) t = Math.min(t, vid.duration - 0.04);
+    return Math.round(t * 1000) / 1000;
+  }
+  function videoLength(L) { const vid = paintVideo(L); return vid && isFinite(vid.duration) && vid.duration ? vid.duration : dur(); }
+  function paintBump(L) { L.props.paint._rev = (L.props.paint._rev || 0) + 1; markDirty(); }
+  function paintList(L) { if (!Array.isArray(L.props.paint)) L.props.paint = []; return L.props.paint; }
+  function selFix(L) { return paintList(L).find((f) => f.id === S.paint.fixId) || null; }
+  function newFix(L) {
+    const list = paintList(L), vt = videoTime(L);
+    const fix = { id: RT.uid('fx'), name: 'Fix ' + (list.length + 1), t0: vt, t1: Math.round(videoLength(L) * 1000) / 1000, keys: [], strokes: [] };
+    list.push(fix);
+    S.paint.fixId = fix.id;
+    return fix;
+  }
+  // canvas pixel -> the video's own pixels, and how many canvas pixels one video pixel is
+  function toVideo(L, pt) {
+    const v = RT.evalLayer(L, S.time), vid = paintVideo(L);
+    const vw = (vid && vid.videoWidth) || v.width, vh = (vid && vid.videoHeight) || v.height;
+    const m = screenMatrix(L, S.time);
+    const lp = m.inverse().transformPoint(pt);
+    return { x: (lp.x + v.width / 2) * vw / v.width, y: (lp.y + v.height / 2) * vh / v.height, k: det(m) * v.width / vw };
+  }
+  function paintPointer(e) {
+    const L = paintLayer(), sp = S.paint, pt = canvasPoint(e);
+    if (sp.tool === 'pick') {
+      const d = ctx.getImageData(Math.round(pt.x), Math.round(pt.y), 1, 1).data;
+      sp.color = '#' + [d[0], d[1], d[2]].map((n) => n.toString(16).padStart(2, '0')).join('');
+      sp.tool = sp.lastTool || 'recolor';
+      renderInspector();
+      return;
+    }
+    const vt = videoTime(L);
+    let fix = selFix(L);
+    if (sp.tool === 'move') {
+      if (!fix) { toast('Pick a fix in the list first.'); return; }
+      const start = toVideo(L, pt), [ox, oy] = RT.fixOffset(fix, vt);
+      cv.setPointerCapture(e.pointerId);
+      dragLoop(e, (ev) => {
+        const p = toVideo(L, canvasPoint(ev));
+        const x = Math.round(ox + p.x - start.x), y = Math.round(oy + p.y - start.y);
+        const k = fix.keys.find((q) => Math.abs(q.t - vt) < 0.02);
+        if (k) { k.x = x; k.y = y; } else { fix.keys.push({ t: vt, x, y }); fix.keys.sort((a, b) => a.t - b.t); }
+        paintBump(L);
+      }, () => { commit(); renderInspector(); });
+      return;
+    }
+    if (!fix || !RT.fixActive(fix, vt)) {
+      if (fix && !RT.fixActive(fix, vt)) toast('"' + fix.name + '" isn\'t showing at this frame, so this went into a new fix.', 3500);
+      fix = newFix(L);
+    }
+    const [dx, dy] = RT.fixOffset(fix, vt);
+    const st = { mode: sp.tool, color: sp.color, size: sp.size, opacity: sp.opacity, soft: sp.soft, pts: [] };
+    if (sp.free) st.free = true;
+    const add = (p) => {
+      const x = Math.round((p.x - dx) * 2) / 2, y = Math.round((p.y - dy) * 2) / 2, n = st.pts.length;
+      if (n && Math.hypot(x - st.pts[n - 2], y - st.pts[n - 1]) < 1.5) return;
+      st.pts.push(x, y);
+      paintBump(L);
+    };
+    fix.strokes.push(st);
+    add(toVideo(L, pt));
+    cv.setPointerCapture(e.pointerId);
+    dragLoop(e, (ev) => { S.paintCursor = canvasPoint(ev); add(toVideo(L, S.paintCursor)); }, () => { commit(); renderInspector(); });
+  }
+  // brush outline, and the drawing guide (reference picture) on top of the canvas
+  function drawPaintGuide() {
+    const L = paintLayer();
+    if (!L) return;
+    const sp = S.paint;
+    const ref = sp.ref && (images[sp.ref] || videos[sp.ref]);
+    if (ref && sp.refMode !== 'off' && (ref.naturalWidth || ref.videoWidth)) {
+      const rw = ref.naturalWidth || ref.videoWidth, rh = ref.naturalHeight || ref.videoHeight;
+      if (ref.videoWidth && !ref._qpUsed && Math.abs(ref.currentTime - (sp.refTime || 0)) > 0.03 && !ref.seeking) {
+        ref.currentTime = sp.refTime || 0;
+        ref.addEventListener('seeked', markDirty, { once: true });
+      }
+      ctx.save();
+      if (sp.refMode === 'overlay') {
+        // traced over the video layer, the same size
+        const v = RT.evalLayer(L, S.time), m = screenMatrix(L, S.time);
+        ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
+        ctx.globalAlpha = sp.refOpacity;
+        const sc = Math.min(v.width / rw, v.height / rh);
+        ctx.drawImage(ref, -rw * sc / 2, -rh * sc / 2, rw * sc, rh * sc);
+      } else {
+        // picture-in-picture, top left
+        const bw = 560, bh = bw * rh / rw;
+        ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(14, 14, bw + 12, bh + 12);
+        ctx.drawImage(ref, 20, 20, bw, bh);
+        ctx.fillStyle = '#ffc94a'; ctx.font = '600 22px Rajdhani, sans-serif'; ctx.fillText('Drawing guide', 26, bh + 48);
+      }
+      ctx.restore();
+    }
+    const c = S.paintCursor;
+    if (c && sp.tool !== 'move' && sp.tool !== 'pick') {
+      const r = Math.max(2, sp.size / 2 * toVideo(L, c).k);
+      ctx.save();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(c.x, c.y, r + 1, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = sp.tool === 'erase' ? '#ff5a6a' : '#fff'; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    // where the selected fix sits now (its move handle)
+    const fix = selFix(L), vt = videoTime(L);
+    if (fix && RT.fixActive(fix, vt) && fix.strokes.length) {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (const st of fix.strokes) for (let i = 0; i < st.pts.length; i += 2) {
+        x0 = Math.min(x0, st.pts[i] - st.size / 2); x1 = Math.max(x1, st.pts[i] + st.size / 2);
+        y0 = Math.min(y0, st.pts[i + 1] - st.size / 2); y1 = Math.max(y1, st.pts[i + 1] + st.size / 2);
+      }
+      const [dx, dy] = RT.fixOffset(fix, vt), v = RT.evalLayer(L, S.time), vid = paintVideo(L);
+      const vw = (vid && vid.videoWidth) || v.width, vh = (vid && vid.videoHeight) || v.height;
+      const m = screenMatrix(L, S.time).translate(-v.width / 2, -v.height / 2).scale(v.width / vw, v.height / vh);
+      ctx.save();
+      ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
+      const lw = 1.5 / det(m);
+      ctx.lineWidth = lw; ctx.setLineDash([6 * lw, 5 * lw]); ctx.strokeStyle = sp.tool === 'move' ? '#ffc94a' : 'rgba(255,201,74,.45)';
+      ctx.strokeRect(x0 + dx, y0 + dy, x1 - x0, y1 - y0);
+      ctx.restore();
+    }
+  }
+
+  function paintSection(L) {
+    const sec = (title, ...kids) => el('section', { class: 'paint' }, el('h3', null, title), ...kids);
+    if (!S.paint || S.paint.layerId !== L.id) {
+      return sec('Paint & redraw',
+        el('p', { class: 'small muted' }, 'Paint fixes straight onto this video: recolor his fur, wipe out spots, darken lines, add details. They play in your overlay too.'),
+        el('button', { class: 'primary', onclick: () => {
+          S.paint = Object.assign({ tool: 'recolor', color: DOG_PALETTE[0][1], size: 24, opacity: 1, soft: 0.3, free: false, fixId: null, ref: null, refMode: 'corner', refOpacity: 0.35, refTime: 0 },
+            S.paint || {}, { layerId: L.id });
+          const list = paintList(L);
+          if (!S.paint.fixId && list.length) S.paint.fixId = list[list.length - 1].id;
+          markDirty(); renderInspector();
+        } }, '\u{1F58C} Open paint tools'));
+    }
+    const sp = S.paint, list = paintList(L), fix = selFix(L), vt = videoTime(L);
+    const re = () => { markDirty(); renderInspector(); };
+    const tools = el('div', { class: 'paint-tools' }, PAINT_TOOLS.map(([id, label]) => el('button', {
+      class: sp.tool === id ? 'active' : '', title: label,
+      onclick: () => { if (id === 'pick' && sp.tool !== 'pick') sp.lastTool = sp.tool; sp.tool = id; re(); },
+    }, label)));
+    const slider = (label, key, min, max, step, fmt) => el('div', { class: 'prop static' }, el('span'), el('span', { class: 'lbl' }, label),
+      el('input', { type: 'range', min, max, step, value: sp[key], oninput: (e) => { sp[key] = parseFloat(e.target.value); e.target.nextSibling.textContent = fmt(sp[key]); markDirty(); } }),
+      el('span', { class: 'small muted' }, fmt(sp[key])));
+    const pal = (P.settings.palette && P.settings.palette.length ? P.settings.palette : DOG_PALETTE);
+    const swatches = el('div', { class: 'swatches' }, pal.map(([name, c]) => el('button', {
+      class: 'swatch' + (sp.color === c ? ' on' : ''), title: name + ' ' + c, style: 'background:' + c,
+      onclick: () => { sp.color = c; if (sp.tool === 'move' || sp.tool === 'pick' || sp.tool === 'erase' || sp.tool === 'smooth') sp.tool = 'recolor'; re(); },
+    })), el('button', { class: 'swatch add', title: 'Add the current colour to the palette', onclick: () => {
+      const name = prompt('Name this colour', 'My colour');
+      if (name == null) return;
+      P.settings.palette = pal.concat([[name || 'Colour', sp.color]]); commit(); re();
+    } }, '+'));
+    const refs = Object.keys(P.assets).filter((id) => P.assets[id].type === 'image' || (P.assets[id].type === 'video' && id !== L.props.asset));
+    const fixRows = list.map((f) => el('div', { class: 'fix' + (f.id === sp.fixId ? ' on' : '') + (RT.fixActive(f, vt) ? '' : ' off') },
+      el('button', { class: 'name', onclick: () => { sp.fixId = f.id; re(); } }, (f.hidden ? '\u{1F648} ' : '') + f.name),
+      el('span', { class: 'small muted' }, f.t0.toFixed(2) + '\u2013' + f.t1.toFixed(2) + 's'),
+      el('button', { title: 'Show / hide', onclick: () => { f.hidden = !f.hidden; paintBump(L); commit(); re(); } }, f.hidden ? 'Show' : 'Hide'),
+      el('button', { class: 'danger', title: 'Delete this fix', onclick: () => { list.splice(list.indexOf(f), 1); if (sp.fixId === f.id) sp.fixId = null; paintBump(L); commit(); re(); } }, '\u2715')));
+    const setT = (key, val) => { fix[key] = Math.round(val * 1000) / 1000; if (fix.t1 < fix.t0) fix[key === 't0' ? 't1' : 't0'] = fix[key]; paintBump(L); commit(); re(); };
+    const fixBox = fix ? el('div', { class: 'keybox' },
+      el('input', { value: fix.name, oninput: (e) => { fix.name = e.target.value; }, onchange: () => commit() }),
+      el('div', { class: 'prop static' }, el('span'), el('span', { class: 'lbl' }, 'Shows from (s)'), el('input', { type: 'number', step: 0.04, min: 0, value: fix.t0, onchange: (e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) setT('t0', v); } })),
+      el('div', { class: 'prop static' }, el('span'), el('span', { class: 'lbl' }, 'Until (s)'), el('input', { type: 'number', step: 0.04, min: 0, value: fix.t1, onchange: (e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) setT('t1', v); } })),
+      el('div', { class: 'row wrap' },
+        el('button', { onclick: () => setT('t0', vt) }, 'Start here'),
+        el('button', { onclick: () => setT('t1', vt) }, 'End here'),
+        el('button', { title: 'Only this frame', onclick: () => { fix.t0 = Math.max(0, vt - 0.02); fix.t1 = vt + 0.02; paintBump(L); commit(); re(); } }, 'This frame only'),
+        el('button', { onclick: () => { fix.t0 = 0; fix.t1 = Math.round(videoLength(L) * 1000) / 1000; paintBump(L); commit(); re(); } }, 'Whole video')),
+      el('p', { class: 'small muted' }, fix.strokes.length + ' stroke(s) \u00b7 ' + (fix.keys.length ? fix.keys.length + ' position key(s): it moves' : 'stays still') +
+        '. With \u201cMove fix\u201d, drag it onto him at a few frames and it glides between them.'),
+      el('div', { class: 'row wrap' },
+        el('button', { disabled: !fix.strokes.length, onclick: () => { fix.strokes.pop(); paintBump(L); commit(); re(); } }, 'Undo last stroke'),
+        el('button', { disabled: !fix.keys.length, onclick: () => { fix.keys = []; paintBump(L); commit(); re(); } }, 'Clear movement'),
+        el('button', { onclick: () => { setTime(clamp(fix.t0 - (L.props.startAt || 0) + L.inPoint, 0, dur())); } }, 'Go to start'))) : null;
+    return sec('Paint & redraw',
+      el('div', { class: 'row' },
+        el('button', { onclick: () => { S.paint.layerId = null; S.paintCursor = null; re(); } }, 'Close paint tools'),
+        el('button', { title: 'Hold to see the video without your fixes', onpointerdown: () => { S.paintOff = true; markDirty(); }, onpointerup: () => { S.paintOff = false; markDirty(); }, onpointerleave: () => { if (S.paintOff) { S.paintOff = false; markDirty(); } } }, 'Hold: before')),
+      el('p', { class: 'small muted' }, 'Video frame ' + vt.toFixed(2) + 's. Paint on the canvas. [ and ] change the brush size.'),
+      tools,
+      el('div', { class: 'prop static' }, el('span'), el('span', { class: 'lbl' }, 'Colour'),
+        el('input', { type: 'color', value: sp.color, oninput: (e) => { sp.color = e.target.value; } })),
+      slider('Brush size', 'size', 2, 160, 1, (v) => v + ' px'),
+      slider('Strength', 'opacity', 0.05, 1, 0.05, (v) => Math.round(v * 100) + '%'),
+      slider('Soft edge', 'soft', 0, 1, 0.05, (v) => Math.round(v * 100) + '%'),
+      el('label', { class: 'check small' }, el('input', { type: 'checkbox', checked: !sp.free, onchange: (e) => { sp.free = !e.target.checked; } }), ' Stay inside his outline'),
+      el('h4', null, 'Drawing guide'),
+      el('p', { class: 'small muted' }, 'Dog palette (click to use; Eyedropper picks any colour on the canvas, the guide picture included):'),
+      swatches,
+      el('div', { class: 'prop static' }, el('span'), el('span', { class: 'lbl' }, 'Guide picture'),
+        el('select', { onchange: (e) => { sp.ref = e.target.value || null; re(); } },
+          el('option', { value: '' }, '(none)'),
+          refs.map((id) => el('option', { value: id, selected: sp.ref === id }, (P.assets[id].type === 'video' ? '\u{1F3AC} ' : '') + (P.assets[id].name || id))))),
+      sp.ref ? el('div', { class: 'row wrap' },
+        el('select', { onchange: (e) => { sp.refMode = e.target.value; markDirty(); } },
+          [['corner', 'Beside (top left)'], ['overlay', 'Trace over the video'], ['off', 'Hidden']].map(([v, t]) => el('option', { value: v, selected: sp.refMode === v }, t))),
+        sp.refMode === 'overlay' ? el('input', { type: 'range', min: 0.05, max: 1, step: 0.05, value: sp.refOpacity, title: 'See-through', oninput: (e) => { sp.refOpacity = parseFloat(e.target.value); markDirty(); } }) : null,
+        P.assets[sp.ref] && P.assets[sp.ref].type === 'video' ? el('input', { type: 'range', min: 0, max: (videos[sp.ref] && videos[sp.ref].duration) || 10, step: 0.04, value: sp.refTime, title: 'Frame of the guide video',
+          oninput: (e) => { sp.refTime = parseFloat(e.target.value); markDirty(); } }) : null) : null,
+      el('p', { class: 'small muted' }, 'Add your dog photos with + Image, or pick another dog video, to compare and copy colours.'),
+      el('h4', null, 'Fixes'),
+      fixRows.length ? fixRows : el('p', { class: 'small muted' }, 'No fixes yet: start painting and one is made, showing from this frame to the end.'),
+      el('div', { class: 'row' }, el('button', { onclick: () => { newFix(L); commit(); re(); } }, '+ New fix from this frame')),
+      fixBox,
+      el('details', { class: 'small' }, el('summary', null, 'How to fix the art'),
+        el('ol', { class: 'steps small' },
+          el('li', null, 'Pick a Guide picture (the typing dog video or your photos) and set it Beside.'),
+          el('li', null, 'Spots on his coat: Smooth, big soft brush, paint over them. Or Cover dark spots with Coat tan.'),
+          el('li', null, 'Wrong fur colour: Recolor with a palette colour; his shading and lines stay.'),
+          el('li', null, 'Thin lines: Darken lines with Ink, small brush, low Strength.'),
+          el('li', null, 'He moves: choose Move fix, go to a later frame, drag the fix back onto him. Repeat every half second or so.'),
+          el('li', null, 'A fix for one moment only: Start here / End here, or This frame only.'),
+          el('li', null, 'Hold \u201cHold: before\u201d to compare. Ctrl+Z undoes.'))));
+  }
 
   // ---------------------------------------------------------------- selection
   function selectLayer(id) {
@@ -666,7 +905,8 @@
     const fields = RT.SCHEMA[L.type];
     const tk = new Set(RT.TRANSFORM_KEYS), ek = new Set(RT.EFFECT_KEYS);
     box.append(sec('Transform', fields.filter((f) => tk.has(f.key)).map((f) => propRow(L, f))));
-    box.append(sec({ image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote', mascot: 'Cartoon dog', video: 'Video' }[L.type], fields.filter((f) => !tk.has(f.key) && !ek.has(f.key)).map((f) => propRow(L, f))));
+    box.append(sec({ image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote', mascot: 'Cartoon dog', video: 'Video' }[L.type], fields.filter((f) => !tk.has(f.key) && !ek.has(f.key) && f.type !== 'paint').map((f) => propRow(L, f))));
+    if (L.type === 'video') box.append(paintSection(L));
     box.append(sec('Effects', fields.filter((f) => ek.has(f.key)).map((f) => propRow(L, f))));
 
     const sk = S.selKey;
@@ -1524,6 +1764,7 @@
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
     else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
     else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateLayer(); }
+    else if ((e.key === '[' || e.key === ']') && paintLayer()) { S.paint.size = clamp(Math.round(S.paint.size * (e.key === '[' ? 0.85 : 1.18)), 2, 160); markDirty(); renderInspector(); }
     else if (e.key === ' ') { e.preventDefault(); S.playing ? pause() : play(); }
     else if (e.key === 'Home') setTime(0);
     else if (e.key === 'End') setTime(dur());
