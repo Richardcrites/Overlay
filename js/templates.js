@@ -3,7 +3,7 @@
  * Each alert type gets its own color, headline and crew line-up.
  */
 // Text supports {variables} and plurals: {bits:bit|bits} reads "bit" when bits is 1.
-const TEMPLATE_VERSION = 4;
+const TEMPLATE_VERSION = 5;
 const THEMES = {
   follow: { color: '#3fd8ff', dogs: ['dog1'], emote: 'wink', header: 'NEW RECRUIT', title: '{user}', sub: 'just joined the pack. Welcome aboard!', synth: 'chirp' },
   sub: { color: '#ffc94a', dogs: ['dog2'], emote: 'pog', header: 'WELCOME TO THE BIG DOGS', title: '{user}', sub: 'just subscribed  \u2022  {tier}', synth: 'quantum' },
@@ -24,7 +24,7 @@ const BUBBLE_TEXT = {
   giftbomb: '[c=' + PINK + ']{user}[/c] gifted {count} {count:sub|subs}!',
   cheer: '[c=' + PINK + ']{user}[/c] cheered {bits} {bits:bit|bits}!',
   redeem: '[c=' + PINK + ']{user}[/c] used {reward}!',
-  raid: '[c=' + PINK + ']{user}[/c] is raiding with {viewers}! Let\'s throw some ass!',
+  raid: '[c=' + PINK + ']{user}[/c] is raiding! Let\'s throw some ass!',
 };
 const HAS_MESSAGE = { resub: true, cheer: true, redeem: true };
 const TEMPLATE_STYLES = [['video', 'Typing dog video (standard)'], ['doodle', 'Cartoon doodle dog'], ['hud', 'Star Citizen HUD']];
@@ -73,17 +73,18 @@ function makeDoodleTemplate(RT, type) {
   return { enabled: true, duration: D, offset: { x: 0, y: 0, scale: 1 }, sound: { synth: 'boing', asset: null, volume: 1, delay: 0 }, layers, style: 'doodle' };
 }
 
-// Where the speech bubble is in each frame of video/typing-dog.webm: [frame (24 fps), centre x, centre y, width, height],
+// Where the speech bubble is in each frame of the typing dog video: [frame (24 fps), centre x, centre y, width, height],
 // in video pixels (1280 x 720). The words follow it as it pops in, wiggles and pops out.
 const TYPING_DOG_BUBBLE = [[23, 296.5, 171.5, 183, 55], [24, 266.5, 143.5, 297, 87], [25, 251.0, 129.0, 356, 106], [26, 241.0, 120.0, 394, 116], [27, 235.0, 114.0, 416, 124], [28, 231.0, 111.0, 430, 128], [29, 229.5, 109.5, 435, 129], [30, 229.5, 109.0, 435, 130], [31, 231.0, 110.0, 430, 128], [32, 233.0, 112.5, 422, 125], [33, 236.0, 115.0, 412, 122], [34, 238.5, 117.5, 403, 119], [35, 240.5, 119.5, 395, 117], [36, 241.0, 120.0, 392, 116], [37, 241.0, 120.0, 392, 116], [38, 241.0, 120.0, 392, 116], [39, 241.0, 120.0, 392, 116], [40, 241.0, 120.0, 392, 116], [41, 241.0, 120.0, 392, 116], [42, 241.0, 120.0, 392, 116], [43, 241.0, 120.0, 392, 116], [44, 241.0, 120.0, 392, 116], [45, 241.0, 120.0, 392, 116], [46, 241.0, 120.0, 392, 116], [47, 241.0, 120.0, 392, 116], [48, 241.0, 120.0, 392, 116], [49, 241.0, 120.0, 392, 116], [50, 241.0, 120.0, 392, 116], [51, 241.0, 120.0, 392, 116], [52, 241.0, 120.0, 392, 116], [53, 241.0, 120.0, 392, 116], [54, 241.0, 120.0, 392, 116], [55, 241.0, 120.0, 392, 116], [56, 241.0, 120.0, 392, 116], [57, 241.0, 120.0, 392, 116], [58, 241.0, 120.0, 392, 116], [59, 241.0, 120.0, 392, 116], [60, 241.0, 120.0, 392, 116], [61, 241.0, 120.0, 392, 116], [62, 241.0, 120.0, 392, 116], [63, 241.0, 120.0, 392, 116], [64, 241.0, 120.0, 392, 116], [65, 241.0, 120.0, 392, 116], [66, 241.0, 120.0, 392, 116], [67, 241.0, 120.0, 392, 116], [68, 241.0, 120.0, 392, 116], [69, 241.0, 120.0, 392, 116], [70, 241.0, 120.0, 392, 116], [71, 241.0, 120.0, 392, 116], [72, 241.0, 120.0, 392, 116], [73, 241.0, 120.0, 392, 116], [74, 241.0, 120.0, 392, 116], [75, 239.5, 118.5, 401, 119], [76, 237.0, 115.5, 414, 123], [77, 235.0, 113.5, 424, 125], [78, 236.0, 115.0, 418, 124], [79, 242.0, 123.0, 376, 110], [80, 256.0, 138.0, 286, 86], [81, 273.0, 157.5, 170, 51]];
-const TYPING_DOG = { asset: 'vid_typingdog', fps: 24, w: 1280, h: 720, bubbleW: 392, bubbleH: 116 };
+// video/dog-bust.webm is the typing dog cropped to 1000 x 500 from the top-left (no computer), so the bubble positions are unchanged.
+const TYPING_DOG = { asset: 'vid_dogbust', fps: 24, w: 1000, h: 500, bubbleW: 392, bubbleH: 116 };
 
 // Standard: the green-screened typing dog video, with the alert's words typed into its speech bubble.
 function makeVideoTemplate(RT, type) {
-  const D = 7, k = kf, L = layerMaker(RT), INK = '#15100c', V = TYPING_DOG;
+  const D = 6, k = kf, L = layerMaker(RT), INK = '#15100c', V = TYPING_DOG;
   const layers = [];
-  // Bottom-right corner: the monitor is cut off at the right of the source video, so that edge sits on the screen edge.
-  const vid = L('video', 'Typing dog video', 0, D, { asset: V.asset, x: 1920 - V.w * 0.4, y: 1080 - V.h * 0.4, width: V.w, height: V.h, scale: 0.8 }, {
+  // Bottom-left corner; the crop line across his chest sits on the bottom edge of the screen.
+  const vid = L('video', 'Dog video', 0, D, { asset: V.asset, x: V.w * 0.45, y: 1080 - V.h * 0.45, width: V.w, height: V.h, scale: 0.9 }, {
     opacity: [k(0, 0, 'linear'), k(0.2, 1, 'linear'), k(D - 0.45, 1, 'linear'), k(D, 0)],
   });
   // Follow the bubble: position/scale keys from the tracking data, in the video's own pixel space (parented to it).
@@ -106,11 +107,11 @@ function makeVideoTemplate(RT, type) {
   words.parent = vid.id;
   if (HAS_MESSAGE[type]) {
     layers.push(L('text', 'Message', 1.2, D - 0.5, {
-      text: '{message}', font: 'Patrick Hand', size: 30, weight: '400', color: INK, x: 1131, y: 505, align: 'center', fit: 420, onlyIf: 'message',
+      text: '{message}', font: 'Patrick Hand', size: 30, weight: '400', color: INK, x: 262, y: 640, align: 'center', fit: 420, onlyIf: 'message',
       animator: 'fadeUp', stagger: 0.03,
     }, { progress: [k(1.3, 0, 'linear'), k(2.2, 1)], scale: [k(1.2, 0, 'backOut'), k(1.5, 1, 'linear'), k(D - 0.75, 1, 'backIn'), k(D - 0.5, 0)] }));
     layers.push(L('shape', 'Message bubble', 1.2, D - 0.5, {
-      kind: 'bubble', tail: 'none', x: 1131, y: 505, width: 460, height: 56, fill: '#ffffff', fillAlpha: 1, stroke: INK, strokeWidth: 4, wobble: 1, onlyIf: 'message',
+      kind: 'bubble', tail: 'none', x: 262, y: 640, width: 460, height: 56, fill: '#ffffff', fillAlpha: 1, stroke: INK, strokeWidth: 4, wobble: 1, onlyIf: 'message',
     }, { scale: [k(1.2, 0, 'backOut'), k(1.5, 1, 'linear'), k(D - 0.75, 1, 'backIn'), k(D - 0.5, 0)] }));
   }
   layers.push(words, cover, vid);
@@ -263,7 +264,7 @@ function makeProject(RT) {
       dog1: { type: 'image', name: 'Dog 1', data: null, crew: true },
       dog2: { type: 'image', name: 'Dog 2', data: null, crew: true },
       dog3: { type: 'image', name: 'Dog 3', data: null, crew: true },
-      vid_typingdog: { type: 'video', name: 'Typing dog (video)', data: null, builtin: 'video/typing-dog.webm' },
+      vid_dogbust: { type: 'video', name: 'Typing dog (no computer)', data: null, builtin: 'video/dog-bust.webm' },
     },
     alerts,
     settings: { channel: '', token: '', clientId: '', volume: 0.8, gap: 1, testOnLoad: false, chatTest: true },

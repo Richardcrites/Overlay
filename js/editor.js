@@ -78,7 +78,7 @@
   function normalize(p) {
     const base = makeProject(RT);
     p.assets = p.assets || {};
-    for (const id of ['dog1', 'dog2', 'dog3', 'vid_typingdog']) if (!p.assets[id]) p.assets[id] = base.assets[id];
+    for (const id of ['dog1', 'dog2', 'dog3', 'vid_dogbust']) if (!p.assets[id]) p.assets[id] = base.assets[id];
     p.alerts = p.alerts || {};
     for (const a of RT.ALERT_TYPES) {
       if (!p.alerts[a.id]) p.alerts[a.id] = base.alerts[a.id];
@@ -1542,7 +1542,7 @@
   }
 
   function offerTemplateUpgrade() {
-    const yes = confirm('New standard alert: your typing dog video (green screen removed), with each alert\'s words typed into its speech bubble.\n\n' +
+    const yes = confirm('New standard alert: your typing dog, now without the computer (green screen removed), with each alert\'s words typed into his speech bubble.\n\n' +
       'Switch all ' + RT.ALERT_TYPES.length + ' alerts to it now? The Star Citizen HUD and cartoon designs stay available under Alert settings -> Template. Ctrl+Z undoes it.');
     P.templateVersion = TEMPLATE_VERSION;
     scheduleSave();
