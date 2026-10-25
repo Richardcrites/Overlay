@@ -78,7 +78,7 @@
   function normalize(p) {
     const base = makeProject(RT);
     p.assets = p.assets || {};
-    for (const id of ['dog1', 'dog2', 'dog3', 'vid_typingtrim']) if (!p.assets[id]) p.assets[id] = base.assets[id];
+    for (const id in base.assets) if ((base.assets[id].crew || base.assets[id].builtin) && !p.assets[id]) p.assets[id] = base.assets[id];
     p.alerts = p.alerts || {};
     for (const a of RT.ALERT_TYPES) {
       if (!p.alerts[a.id]) p.alerts[a.id] = base.alerts[a.id];
@@ -88,6 +88,11 @@
       for (const l of al.layers) { l.keys = l.keys || {}; l.props = Object.assign(RT.makeLayer(l.type).props, l.props); }
     }
     p.settings = Object.assign({}, base.settings, p.settings || {});
+    // One time: give existing alerts the sound bites (only where no sound file was picked yet).
+    if (!p.soundsAdded) {
+      for (const type in DEFAULT_SOUND) if (p.alerts[type] && !p.alerts[type].sound.asset) p.alerts[type].sound.asset = DEFAULT_SOUND[type];
+      p.soundsAdded = true;
+    }
     p.width = W; p.height = H;
     return p;
   }
@@ -101,11 +106,12 @@
     videos = rv.cache;
     rv.ready.then(markDirty);
   }
-  // The typing-dog video ships with the editor (video/typing-dog.webm); copy it into the project on first use.
+  // The typing-dog video and the sound bites ship with the editor (video/, sounds/); copy them into the project on first use.
   async function ensureBundledVideos() {
+    let failed = false;
     for (const id in P.assets) {
       const a = P.assets[id];
-      if (a.type !== 'video' || a.data || !a.builtin) continue;
+      if (a.data || !a.builtin) continue;
       try {
         const r = await fetch(a.builtin);
         if (!r.ok) throw new Error(r.status);
@@ -113,10 +119,12 @@
         refreshImages();
         scheduleSave();
         renderAssets();
+        renderAlertSettings();
       } catch (e) {
-        toast('Couldn\'t load the built-in typing dog video. Open the editor from its web address (GitHub Pages), or add the video with "+ Video".', 8000);
+        failed = true;
       }
     }
+    if (failed) toast('Couldn\'t load the built-in video and sounds. Open the editor from its web address (GitHub Pages), or add them with "+ Video" / "+ Sound".', 8000);
   }
   function assetNames() {
     const o = {};

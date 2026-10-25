@@ -23,10 +23,13 @@ const BUBBLE_TEXT = {
   giftsub: '[c=' + PINK + ']{user}[/c] gifted a sub to {recipient}!',
   giftbomb: '[c=' + PINK + ']{user}[/c] gifted {count} {count:sub|subs}!',
   cheer: '[c=' + PINK + ']{user}[/c] cheered {bits} {bits:bit|bits}!',
+  tip: '[c=' + PINK + ']{user}[/c] donated {amount}!',
   redeem: '[c=' + PINK + ']{user}[/c] used {reward}!',
   raid: '[c=' + PINK + ']{user}[/c] is raiding! Let\'s throw some ass!',
 };
-const HAS_MESSAGE = { resub: true, cheer: true, redeem: true };
+const HAS_MESSAGE = { resub: true, cheer: true, tip: true, redeem: true };
+// The sound bites each alert plays (from the user's old StreamElements alerts), in sounds/.
+const DEFAULT_SOUND = { follow: 'snd_follower', sub: 'snd_sub', resub: 'snd_sub', giftsub: 'snd_sub', giftbomb: 'snd_sub', cheer: 'snd_bits', tip: 'snd_donation' };
 const TEMPLATE_STYLES = [['video', 'Typing dog video (standard)'], ['doodle', 'Cartoon doodle dog'], ['hud', 'Star Citizen HUD']];
 
 function layerMaker(RT) {
@@ -121,6 +124,12 @@ function makeVideoTemplate(RT, type) {
 }
 
 function makeTemplate(RT, type, style) {
+  const al = buildTemplate(RT, type, style);
+  if (DEFAULT_SOUND[type]) al.sound.asset = DEFAULT_SOUND[type];
+  return al;
+}
+
+function buildTemplate(RT, type, style) {
   style = style || 'video';
   if (style === 'video') return makeVideoTemplate(RT, type);
   if (style === 'doodle' || !THEMES[type]) return makeDoodleTemplate(RT, type);
@@ -260,6 +269,7 @@ function makeProject(RT) {
   return {
     version: 1,
     templateVersion: TEMPLATE_VERSION,
+    soundsAdded: true,
     width: 1920,
     height: 1080,
     assets: {
@@ -267,6 +277,10 @@ function makeProject(RT) {
       dog2: { type: 'image', name: 'Dog 2', data: null, crew: true },
       dog3: { type: 'image', name: 'Dog 3', data: null, crew: true },
       vid_typingtrim: { type: 'video', name: 'Typing dog', data: null, builtin: 'video/typing-dog-trimmed.webm' },
+      snd_follower: { type: 'sound', name: 'Follower', data: null, builtin: 'sounds/follower.mp3' },
+      snd_sub: { type: 'sound', name: 'Sub', data: null, builtin: 'sounds/sub.ogg' },
+      snd_bits: { type: 'sound', name: 'Bits', data: null, builtin: 'sounds/bits.mp3' },
+      snd_donation: { type: 'sound', name: 'Donation', data: null, builtin: 'sounds/donation.mp3' },
     },
     alerts,
     settings: { channel: '', token: '', clientId: '', volume: 0.8, gap: 1, testOnLoad: false, chatTest: true },

@@ -192,6 +192,7 @@ function OverlayRuntime() {
     { id: 'giftsub', label: 'Gift Sub', vars: ['user', 'recipient', 'tier'] },
     { id: 'giftbomb', label: 'Gift Bomb', vars: ['user', 'count', 'tier'] },
     { id: 'cheer', label: 'Cheer', vars: ['user', 'bits', 'message'] },
+    { id: 'tip', label: 'Donation', vars: ['user', 'amount', 'message'] },
     { id: 'redeem', label: 'Redeem', vars: ['user', 'reward', 'message'] },
     { id: 'raid', label: 'Raid', vars: ['user', 'viewers'] },
   ];
@@ -202,6 +203,7 @@ function OverlayRuntime() {
     giftsub: { user: 'Hull_C_Hauler', recipient: 'NewPilot99', tier: 'Tier 1' },
     giftbomb: { user: 'Idris_Captain', count: '10', tier: 'Tier 1' },
     cheer: { user: 'aUEC_Baron', bits: '500', message: 'Fuel for the Carrack! Good boys!' },
+    tip: { user: 'GenerousPilot', amount: '$5.00', message: 'Treats for the dogs!' },
     redeem: { user: 'so_hey', reward: 'Bezos Money', message: 'I think you should be puffy' },
     raid: { user: 'PyroExplorer', viewers: '87' },
   };
@@ -1832,6 +1834,15 @@ function OverlayRuntime() {
     return b64sha((await b64sha(password + salt)) + challenge);
   }
 
+  // Donation services Streamer.bot can connect to, and the event each one sends for a tip.
+  const TIP_SOURCES = [['StreamElements', 'Tip'], ['Streamlabs', 'Donation'], ['Kofi', 'Donation'], ['TipeeeStream', 'Donation']];
+  function money(amount, currency) {
+    const n = Number(amount);
+    if (!isFinite(n)) return String(amount == null ? '' : amount);
+    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: String(currency || 'USD').toUpperCase() }).format(n); }
+    catch (e) { return n.toFixed(2) + (currency ? ' ' + currency : ''); }
+  }
+
   function StreamerbotEvents(onEvent, opts) {
     opts = opts || {};
     const log = opts.log || function () {};
@@ -1887,6 +1898,9 @@ function OverlayRuntime() {
             ws.send(JSON.stringify({ request: 'Authenticate', id: 'qp-auth', authentication: await sbAuth(opts.password, m.authentication.salt, m.authentication.challenge) }));
           }
           ws.send(JSON.stringify({ request: 'Subscribe', id: 'qp-sub', events: { Twitch: events } }));
+          if (!opts.cheersOnly) {
+            for (const [src, type] of TIP_SOURCES) ws.send(JSON.stringify({ request: 'Subscribe', id: 'qp-tip-' + src, events: { [src]: [type] } }));
+          }
           return;
         }
         if (m.id === 'qp-auth' && m.status !== 'ok') log('Streamer.bot rejected the password', true);
@@ -1895,6 +1909,11 @@ function OverlayRuntime() {
           else log('Streamer.bot: ' + (m.error || 'could not subscribe to events'), true);
         }
         if (m.event && m.data && (!m.event.source || m.event.source === 'Twitch')) handle(m.event.type, m.data);
+        else if (m.event && m.data && !opts.cheersOnly && TIP_SOURCES.some(([src, type]) => src === m.event.source && type === m.event.type)) {
+          const d = m.data;
+          onEvent({ type: 'tip', user: d.username || d.from || d.displayName || d.name || 'Someone',
+            amount: d.formattedAmount || d.formatted_amount || money(d.amount, d.currency), message: d.message || '' });
+        }
       };
       ws.onclose = () => {
         if (!warned) { log('Waiting for Streamer.bot at ' + url + ' (is its WebSocket server started?)', true); warned = true; }
@@ -1962,6 +1981,7 @@ function OverlayRuntime() {
         const dd = ev.data || ev;
         cheerOnce('event', { type: 'cheer', user: dd.displayName || dd.username || dd.name, bits: bitsOf(dd.amount), message: dd.message || '' }, [dd.displayName, dd.username, dd.name]);
       } else if (L === 'raid-latest') onEvent({ type: 'raid', user: ev.name, viewers: String(ev.amount) });
+      else if (L === 'tip-latest') onEvent({ type: 'tip', user: ev.name, amount: money(ev.amount, ev.currency), message: ev.message || '' });
       else if (L === 'event' && (ev.type === 'channelPointsRedemption' || ev.type === 'channel-points-redemption')) {
         const dd = ev.data || ev;
         onEvent({ type: 'redeem', user: dd.displayName || dd.username || dd.name, reward: dd.redemption || dd.rewardTitle || (dd.reward && dd.reward.title) || dd.item || 'a reward', message: dd.message || dd.userInput || '' });

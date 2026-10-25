@@ -187,7 +187,26 @@ bubble as it pops in, wiggles and pops out:
 | Raid | **{user}** is raiding! Let's throw some ass! |
 
 To change the words, click the **Bubble text** layer. He sits in the bottom-right corner (the monitor's cut-off edge lines up with the screen edge); move it with
-**Alert settings → Move all X/Y** or **Scale all**. The video's own typing sounds play as the alert sound.
+**Alert settings → Move all X/Y** or **Scale all**.
+
+### Alert sounds
+
+Your StreamElements sound bites are in `sounds/` and already set on each alert (**Alert settings → Sound file**):
+
+| Sound | Alerts |
+|---|---|
+| `follower.mp3` | Follow |
+| `sub.ogg` | Sub, Resub, Gift Sub, Gift Bomb |
+| `bits.mp3` | Cheer |
+| `donation.mp3` | Donation |
+
+Raid and Redeem have no sound bite. The video's own typing sounds play on top. To hear only the sound bite,
+click the dog video layer and set **Video sound volume** to 0.
+
+### Donation alert
+
+Streamer.bot passes on tips from **Streamlabs, StreamElements, Ko-fi and TipeeeStream** if that service is
+connected under **Integrations** in Streamer.bot. The bubble shows *{user} donated {amount}!* plus their message.
 
 - **Other looks:** pick one under **Alert settings → Template** (*Typing dog video*, *Cartoon doodle dog* or
   *Star Citizen HUD*), then click **Use template**.
@@ -250,5 +269,7 @@ css/editor.css    editor styles
 js/runtime.js     animation engine, sounds, and Twitch connections (also embedded in exported overlays)
 js/templates.js   the built-in Star Citizen / dog templates
 js/editor.js      editor UI: timeline, keyframes, inspector, export
+sounds/           alert sound bites (follower, sub, bits, donation)
+video/            the typing dog video cuts
 perfect-landing/  the Perfect Landing Stream Deck alert (index.html + ironclad.webp)
 ```
