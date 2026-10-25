@@ -169,7 +169,17 @@ Exports default to **High**: motion blur plus bloom glow. If OBS ever stutters w
 export again with **Export overlay → Options → Render quality → Standard**. Standard uses the old lightweight glow
 and no motion blur. Everything else, including decoding text, sweeps, glitches and emotes, stays the same.
 
-## Standard alert: the typing dog video
+## Standard alert: the dog at his desk (master clip)
+
+`video/desk-dog.webm` is the master look: the dog at his desk facing you, grinning and waving a paw, a seamless 6 s
+loop (green screen removed, nothing else changed). Follow, Sub, Resub, Gift Sub, Gift Bomb, Donation, Raid and Redeem
+use it, with the words in a white speech bubble beside his head. **Cheer** is the same scene with coins raining down,
+colour-matched to the master, and **Bezo's Bucks** keeps its own bald-cap clip.
+
+New clips should match this one: give your video generator a frame of it as the first frame or reference image.
+The older typing dog is still under **Alert settings → Template → Typing dog (side view)**.
+
+## Older look: the typing dog video
 
 Every alert type starts from your **typing dog video**: the cartoon dog in the red headband, with the green screen
 keyed out, at his computer. He types, then winks and smiles at the camera (5.6 seconds). When its speech bubble pops up, the alert's words type into it, and they follow the
@@ -192,8 +202,7 @@ To change the words, click the **Bubble text** layer. He sits in the bottom-righ
 ### Cheer: the coin rain dog
 
 Cheers play `video/coin-dog.webm`: coins rain down while he grins and winks, with the words in a bubble beside his
-head. The clip was colour-matched to the typing dog (same tan coat, most of its leopard speckles smoothed out, bolder
-outlines). It plays the Bits sound.
+head. The clip is colour-matched to the master desk clip (same coat colours, speckles kept). It plays the Bits sound.
 
 ## Paint & redraw (fix the art yourself)
 

@@ -103,6 +103,18 @@
       p.alerts.cheer = fresh;
       p.cheerCoins = true;
     }
+    // One time: alerts still on the typing dog switch to the desk dog master (keeping their sound and on/off).
+    if (!p.deskDog) {
+      for (const a of RT.ALERT_TYPES) {
+        const old = p.alerts[a.id];
+        if (a.id === 'primesub' || !old || !old.layers.some((l) => l.type === 'video' && l.props.asset === 'vid_typingtrim')) continue;
+        const fresh = base.alerts[a.id];
+        fresh.enabled = old.enabled;
+        if (old.sound && old.sound.asset) fresh.sound = old.sound;
+        p.alerts[a.id] = fresh;
+      }
+      p.deskDog = true;
+    }
     // One time: turn the Redeem alert off (it can be ticked back on under Alert settings).
     if (!p.redeemOff) { if (p.alerts.redeem) p.alerts.redeem.enabled = false; p.redeemOff = true; }
     p.width = W; p.height = H;

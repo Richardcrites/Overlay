@@ -31,7 +31,7 @@ const BUBBLE_TEXT = {
 const HAS_MESSAGE = { resub: true, primesub: true, cheer: true, tip: true, redeem: true };
 // The sound bites each alert plays (from the user's old StreamElements alerts), in sounds/.
 const DEFAULT_SOUND = { follow: 'snd_follower', sub: 'snd_sub', resub: 'snd_sub', primesub: 'snd_sub', giftsub: 'snd_sub', giftbomb: 'snd_sub', cheer: 'snd_bits', tip: 'snd_donation', raid: 'snd_raid' };
-const TEMPLATE_STYLES = [['video', 'Typing dog video (standard)'], ['doodle', 'Cartoon doodle dog'], ['hud', 'Star Citizen HUD']];
+const TEMPLATE_STYLES = [['video', 'Dog at his desk (standard)'], ['typing', 'Typing dog (side view)'], ['doodle', 'Cartoon doodle dog'], ['hud', 'Star Citizen HUD']];
 
 function layerMaker(RT) {
   return (ltype, name, inP, outP, props, keys) => {
@@ -132,11 +132,14 @@ function makeVideoTemplate(RT, type) {
   return { enabled: true, duration: D, offset: { x: 0, y: 0, scale: 1 }, sound: { synth: 'none', asset: null, volume: 1, delay: 0 }, layers, style: 'video' };
 }
 
-// video/coin-dog.webm (Cheer): the dog at his desk as coins rain down; he looks up, grins and winks. 6 s.
-// It has no speech bubble of its own, so a clean white one pops up beside his head.
-const COIN_DOG = { asset: 'vid_coins', w: 1280, h: 720, duration: 6 };
-function makeCoinTemplate(RT, type) {
-  const V = COIN_DOG, D = V.duration, k = kf, L = layerMaker(RT), INK = '#15100c';
+// The standard look: the dog at his desk, facing us (video/desk-dog.webm, the master clip: he grins and waves, a
+// seamless 6 s loop). Cheers use the same scene with coins raining down (video/coin-dog.webm, colour-matched to the
+// master). Neither has a speech bubble of its own, so a clean white one pops up beside his head.
+// bubble: where it sits in the video's own pixels, from the centre (the bubble is parented to the video).
+const DESK_DOG = { asset: 'vid_desk', w: 1280, h: 720, duration: 6, bubble: { x: 420, y: -250, w: 440 } };
+const COIN_DOG = { asset: 'vid_coins', w: 1280, h: 720, duration: 6, bubble: { x: 330, y: -235, w: 470 } };
+function makeDeskTemplate(RT, type, V) {
+  const D = V.duration, k = kf, L = layerMaker(RT), INK = '#15100c', B = V.bubble;
   const pop = (t0, t1) => [k(t0, 0, 'backOut'), k(t0 + 0.3, 1, 'linear'), k(t1 - 0.25, 1, 'backIn'), k(t1, 0)];
   // Bottom-left corner: the monitor is cut off at the left of the source video, so that edge sits on the screen edge.
   const vid = L('video', 'Dog video', 0, D, { asset: V.asset, x: V.w * 0.4, y: 1080 - V.h * 0.4, width: V.w, height: V.h, scale: 0.8 }, {
@@ -144,11 +147,11 @@ function makeCoinTemplate(RT, type) {
   });
   // In the video's own pixels, centred on it (parented): up and to the right of his head.
   const bubble = L('shape', 'Speech bubble', 0.45, D - 0.45, {
-    kind: 'bubble', tail: 'left', x: 330, y: -235, width: 470, height: 132, fill: '#ffffff', fillAlpha: 1, stroke: INK, strokeWidth: 4, wobble: 0.3,
+    kind: 'bubble', tail: 'left', x: B.x, y: B.y, width: B.w, height: 132, fill: '#ffffff', fillAlpha: 1, stroke: INK, strokeWidth: 4, wobble: 0.3,
   }, { scale: pop(0.45, D - 0.45) });
   const words = L('text', 'Bubble text', 0.45, D - 0.45, {
-    text: BUBBLE_TEXT[type], font: 'Patrick Hand', size: 42, weight: '400', color: INK, x: 330, y: -235, align: 'center',
-    wrap: 420, fit: 420, fitHeight: 104,
+    text: BUBBLE_TEXT[type], font: 'Patrick Hand', size: 42, weight: '400', color: INK, x: B.x, y: B.y, align: 'center',
+    wrap: B.w - 50, fit: B.w - 50, fitHeight: 104,
   }, { reveal: [k(0.65, 0, 'linear'), k(1.55, 1)], scale: pop(0.45, D - 0.45) });
   bubble.parent = vid.id;
   words.parent = vid.id;
@@ -174,7 +177,12 @@ function makeTemplate(RT, type, style) {
 
 function buildTemplate(RT, type, style) {
   style = style || 'video';
-  if (style === 'video') return type === 'cheer' ? makeCoinTemplate(RT, type) : makeVideoTemplate(RT, type);
+  if (style === 'video') {
+    if (type === 'cheer') return makeDeskTemplate(RT, type, COIN_DOG);
+    if (type === 'primesub') return makeVideoTemplate(RT, type);
+    return makeDeskTemplate(RT, type, DESK_DOG);
+  }
+  if (style === 'typing') return Object.assign(makeVideoTemplate(RT, type), { style: 'typing' });
   if (style === 'doodle' || !THEMES[type]) return makeDoodleTemplate(RT, type);
   const th = THEMES[type];
   const C = th.color;
@@ -314,6 +322,7 @@ function makeProject(RT) {
     version: 1,
     redeemOff: true,
     cheerCoins: true,
+    deskDog: true,
     templateVersion: TEMPLATE_VERSION,
     soundsDone: Object.keys(DEFAULT_SOUND),
     width: 1920,
@@ -323,6 +332,7 @@ function makeProject(RT) {
       dog2: { type: 'image', name: 'Dog 2', data: null, crew: true },
       dog3: { type: 'image', name: 'Dog 3', data: null, crew: true },
       vid_typingtrim: { type: 'video', name: 'Typing dog', data: null, builtin: 'video/typing-dog-trimmed.webm' },
+      vid_desk: { type: 'video', name: 'Desk dog (master)', data: null, builtin: 'video/desk-dog.webm' },
       vid_coins: { type: 'video', name: 'Coin rain dog', data: null, builtin: 'video/coin-dog.webm' },
       vid_prime: { type: 'video', name: "Bezo's Bucks dog", data: null, builtin: 'video/prime-dog.webm' },
       snd_follower: { type: 'sound', name: 'Follower', data: null, builtin: 'sounds/follower.mp3' },
