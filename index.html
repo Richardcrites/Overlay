@@ -6,7 +6,7 @@
   <title>Quantum Paws Alert Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Bebas+Neue&family=Exo+2:ital,wght@0,400;0,600;0,700;0,900;1,600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Share+Tech+Mono&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Comic+Neue:wght@400;700&family=Patrick+Hand&family=Bebas+Neue&family=Exo+2:ital,wght@0,400;0,600;0,700;0,900;1,600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Share+Tech+Mono&display=swap">
   <link rel="stylesheet" href="css/editor.css">
 </head>
 <body>
@@ -34,9 +34,11 @@
         <div class="row">
           <button id="btnAddImage">+ Image</button>
           <button id="btnAddSound">+ Sound</button>
+          <button id="btnAddVideo">+ Video</button>
         </div>
         <input type="file" id="fileImage" accept="image/*" hidden>
         <input type="file" id="fileSound" accept="audio/*" hidden>
+        <input type="file" id="fileVideo" accept="video/*" hidden>
       </section>
       <section>
         <h3>Alert settings</h3>
@@ -54,6 +56,8 @@
         <button data-add="image">Dog / Image</button>
         <button data-add="text">Text</button>
         <button data-add="shape">Shape</button>
+        <button data-add="video">Video</button>
+        <button data-add="mascot">Cartoon dog</button>
         <button data-add="emote">Dog emote</button>
         <button data-add="particles">Particles</button>
         <div class="spacer"></div>

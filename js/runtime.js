@@ -54,7 +54,7 @@ function OverlayRuntime() {
   };
 
   // ---------------------------------------------------------------- schema
-  const FONTS = ['Orbitron', 'Rajdhani', 'Share Tech Mono', 'Exo 2', 'Audiowide', 'Bebas Neue', 'Russo One', 'Arial'];
+  const FONTS = ['Orbitron', 'Rajdhani', 'Share Tech Mono', 'Exo 2', 'Audiowide', 'Bebas Neue', 'Russo One', 'Patrick Hand', 'Comic Neue', 'Arial'];
   const BLENDS = [['source-over', 'Normal'], ['screen', 'Screen'], ['lighter', 'Add (glow)'], ['multiply', 'Multiply'], ['overlay', 'Overlay']];
 
   const COMMON = [
@@ -77,9 +77,10 @@ function OverlayRuntime() {
     { key: 'sweepColor', label: 'Sweep color', type: 'color', def: '#ffffff' },
     { key: 'sweepWidth', label: 'Sweep width', type: 'num', def: 140, step: 5, min: 5 },
     { key: 'glitch', label: 'Glitch', type: 'num', anim: true, def: 0, step: 0.01, min: 0, max: 1 },
+    { key: 'onlyIf', label: 'Show', type: 'select', def: '', options: [['', 'Always'], ['message', 'Only if there is a {message}']] },
   ];
   const TRANSFORM_KEYS = ['x', 'y', 'anchorX', 'anchorY', 'scale', 'scaleX', 'scaleY', 'rotation', 'skew', 'opacity'];
-  const EFFECT_KEYS = ['blur', 'glow', 'glowColor', 'blend', 'motionBlur', 'sweep', 'sweepColor', 'sweepWidth', 'glitch'];
+  const EFFECT_KEYS = ['blur', 'glow', 'glowColor', 'blend', 'motionBlur', 'sweep', 'sweepColor', 'sweepWidth', 'glitch', 'onlyIf'];
 
   const SCHEMA = {
     image: [
@@ -109,11 +110,12 @@ function OverlayRuntime() {
       { key: 'color2', label: 'Gradient bottom', type: 'color', def: '#7fd8ff' },
       { key: 'wrap', label: 'Wrap width (0 = off)', type: 'num', def: 0, step: 10, min: 0 },
       { key: 'fit', label: 'Shrink to fit width (0 = off)', type: 'num', def: 0, step: 10, min: 0 },
+      { key: 'fitHeight', label: 'Shrink to fit height (0 = off)', type: 'num', def: 0, step: 5, min: 0 },
       { key: 'outline', label: 'Outline', type: 'num', anim: true, def: 0, step: 0.5, min: 0 },
       { key: 'outlineColor', label: 'Outline color', type: 'color', def: '#000000' },
     ],
     shape: [
-      { key: 'kind', label: 'Shape', type: 'select', def: 'panel', options: [['panel', 'HUD panel'], ['rect', 'Rectangle'], ['circle', 'Circle / ellipse'], ['hex', 'Hexagon'], ['brackets', 'Corner brackets'], ['ring', 'Dashed ring'], ['line', 'Line'], ['sparkle', 'Sparkle (wink glint)']] },
+      { key: 'kind', label: 'Shape', type: 'select', def: 'panel', options: [['panel', 'HUD panel'], ['rect', 'Rectangle'], ['circle', 'Circle / ellipse'], ['hex', 'Hexagon'], ['brackets', 'Corner brackets'], ['ring', 'Dashed ring'], ['line', 'Line'], ['sparkle', 'Sparkle (wink glint)'], ['bubble', 'Speech bubble (hand-drawn)']] },
       { key: 'width', label: 'Width', type: 'num', anim: true, def: 400, step: 1, min: 0 },
       { key: 'height', label: 'Height', type: 'num', anim: true, def: 160, step: 1, min: 0 },
       { key: 'fill', label: 'Fill color', type: 'color', def: '#06121f' },
@@ -123,6 +125,40 @@ function OverlayRuntime() {
       { key: 'reveal', label: 'Wipe reveal', type: 'num', anim: true, def: 1, step: 0.01, min: 0, max: 1 },
       { key: 'spin', label: 'Spin (deg/sec)', type: 'num', def: 0, step: 1 },
       { key: 'dash', label: 'Dash length', type: 'num', def: 14, step: 1, min: 1 },
+      { key: 'tail', label: 'Bubble tail', type: 'select', def: 'left', options: [['left', 'Bottom left'], ['right', 'Bottom right'], ['none', 'None']] },
+      { key: 'wobble', label: 'Hand-drawn wobble', type: 'num', def: 0, step: 0.1, min: 0 },
+    ],
+    video: [
+      { key: 'asset', label: 'Video', type: 'video', def: '' },
+      { key: 'width', label: 'Width', type: 'num', anim: true, def: 1280, step: 1, min: 0 },
+      { key: 'height', label: 'Height', type: 'num', anim: true, def: 720, step: 1, min: 0 },
+      { key: 'startAt', label: 'Start the video at (s)', type: 'num', def: 0, step: 0.1, min: 0 },
+      { key: 'loop', label: 'Loop', type: 'bool', def: false },
+      { key: 'volume', label: 'Video sound volume', type: 'num', def: 1, step: 0.05, min: 0, max: 2 },
+      { key: 'chroma', label: 'Green screen key', type: 'bool', def: false },
+      { key: 'keyColor', label: 'Key color', type: 'color', def: '#16be28' },
+      { key: 'keyTolerance', label: 'Key tolerance', type: 'num', def: 0.3, step: 0.01, min: 0, max: 1 },
+      { key: 'keySoftness', label: 'Key edge softness', type: 'num', def: 0.12, step: 0.01, min: 0.01, max: 1 },
+    ],
+    mascot: [
+      { key: 'pose', label: 'Pose', type: 'select', def: 'idle', options: [['idle', 'Idle (blinks, ear twitches)'], ['excited', 'Excited (bouncy, happy eyes)']] },
+      { key: 'talk', label: 'Talking', type: 'num', anim: true, def: 0, step: 0.05, min: 0, max: 1 },
+      { key: 'width', label: 'Width', type: 'num', anim: true, def: 300, step: 1, min: 0 },
+      { key: 'height', label: 'Height', type: 'num', anim: true, def: 510, step: 1, min: 0 },
+      { key: 'fur', label: 'Fur', type: 'color', def: '#c99a62' },
+      { key: 'furDark', label: 'Dark fur', type: 'color', def: '#8b5a33' },
+      { key: 'mask', label: 'Muzzle', type: 'color', def: '#2b211b' },
+      { key: 'cream', label: 'Chest & brows', type: 'color', def: '#ecd6ad' },
+      { key: 'innerEar', label: 'Inner ears', type: 'color', def: '#e3a98d' },
+      { key: 'eye', label: 'Eyes', type: 'color', def: '#3a2212' },
+      { key: 'ears', label: 'Ears', type: 'select', def: 'perky', options: [['perky', 'Perky (big, upright)'], ['floppy', 'Floppy']] },
+      { key: 'vestOn', label: 'Vest', type: 'bool', def: true },
+      { key: 'vest', label: 'Vest color', type: 'color', def: '#22b5e8' },
+      { key: 'harness', label: 'Harness', type: 'color', def: '#16191d' },
+      { key: 'outline', label: 'Outline', type: 'color', def: '#15100c' },
+      { key: 'lineWidth', label: 'Line thickness', type: 'num', def: 1, step: 0.1, min: 0.2 },
+      { key: 'wobble', label: 'Hand-drawn wobble', type: 'num', def: 1, step: 0.1, min: 0 },
+      { key: 'speed', label: 'Animation speed', type: 'num', def: 1, step: 0.1, min: 0 },
     ],
     emote: [
       { key: 'expression', label: 'Expression', type: 'select', def: 'wink', options: [['wink', 'Wink'], ['pog', 'Pog (jaw drop)'], ['happy', 'Happy (tongue wag)'], ['love', 'Heart eyes'], ['cool', 'Cool visor']] },
@@ -156,6 +192,7 @@ function OverlayRuntime() {
     { id: 'giftsub', label: 'Gift Sub', vars: ['user', 'recipient', 'tier'] },
     { id: 'giftbomb', label: 'Gift Bomb', vars: ['user', 'count', 'tier'] },
     { id: 'cheer', label: 'Cheer', vars: ['user', 'bits', 'message'] },
+    { id: 'redeem', label: 'Redeem', vars: ['user', 'reward', 'message'] },
     { id: 'raid', label: 'Raid', vars: ['user', 'viewers'] },
   ];
   const SAMPLE_VARS = {
@@ -165,6 +202,7 @@ function OverlayRuntime() {
     giftsub: { user: 'Hull_C_Hauler', recipient: 'NewPilot99', tier: 'Tier 1' },
     giftbomb: { user: 'Idris_Captain', count: '10', tier: 'Tier 1' },
     cheer: { user: 'aUEC_Baron', bits: '500', message: 'Fuel for the Carrack! Good boys!' },
+    redeem: { user: 'so_hey', reward: 'Bezos Money', message: 'I think you should be puffy' },
     raid: { user: 'PyroExplorer', viewers: '87' },
   };
 
@@ -300,6 +338,56 @@ function OverlayRuntime() {
     else { ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); }
   }
 
+  // ---------------------------------------------------------------- hand-drawn doodle helpers
+  // A smooth closed (or open) curve through points, each nudged a little. The nudges change about 8 times a
+  // second, so outlines "boil" like a hand-drawn GIF.
+  function doodlePath(ctx, pts, wob, seed, frame, closed) {
+    const n = pts.length;
+    if (n < 2) return;
+    const j = !wob ? pts : pts.map(([x, y], i) => {
+      const a = charHash(seed * 131.7 + i * 17.31 + frame * 7.13) * Math.PI * 2;
+      const r = charHash(seed * 71.3 + i * 3.77 + frame * 13.9) * wob;
+      return [x + Math.cos(a) * r, y + Math.sin(a) * r];
+    });
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    ctx.beginPath();
+    if (closed !== false) {
+      const m0 = mid(j[n - 1], j[0]);
+      ctx.moveTo(m0[0], m0[1]);
+      for (let i = 0; i < n; i++) { const p = j[i], m = mid(p, j[(i + 1) % n]); ctx.quadraticCurveTo(p[0], p[1], m[0], m[1]); }
+      ctx.closePath();
+    } else {
+      ctx.moveTo(j[0][0], j[0][1]);
+      for (let i = 1; i < n - 1; i++) { const m = mid(j[i], j[i + 1]); ctx.quadraticCurveTo(j[i][0], j[i][1], m[0], m[1]); }
+      ctx.lineTo(j[n - 1][0], j[n - 1][1]);
+    }
+  }
+  function ellPts(cx, cy, rx, ry, n) {
+    const out = [];
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; out.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); }
+    return out;
+  }
+  // Rounded speech bubble with an optional tail, sampled as points so it can wobble.
+  function bubblePts(w, h, tail) {
+    const r = Math.max(4, Math.min(h * 0.45, 40, w / 4));
+    const pts = [];
+    const edge = (x0, y0, x1, y1) => { const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / 40)); for (let i = 0; i < n; i++) pts.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n]); };
+    const corner = (cx, cy, a0) => { for (let i = 0; i < 4; i++) { const a = a0 + i / 4 * Math.PI / 2; pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } };
+    const L = -w / 2, R = w / 2, T = -h / 2, B = h / 2;
+    edge(L + r, T, R - r, T); corner(R - r, T + r, -Math.PI / 2);
+    edge(R, T + r, R, B - r); corner(R - r, B - r, 0);
+    if (tail === 'left' || tail === 'right') {
+      const sgn = tail === 'left' ? -1 : 1;
+      const a = sgn * w * 0.18, b = sgn * w * 0.3, tip = [sgn * w * 0.43, B + Math.min(70, h * 0.6)];
+      // Bottom edge right to left, with the tail inserted.
+      if (sgn < 0) { edge(R - r, B, a, B); pts.push([a, B]); pts.push(tip); edge(b, B, L + r, B); }
+      else { edge(R - r, B, b, B); pts.push([b, B]); pts.push(tip); edge(a, B, L + r, B); }
+    } else edge(R - r, B, L + r, B);
+    corner(L + r, B - r, Math.PI / 2);
+    edge(L, B - r, L, T + r); corner(L + r, T + r, Math.PI);
+    return pts;
+  }
+
   // Four-point twinkle star.
   function sparklePts(w, h) {
     const pts = [];
@@ -398,22 +486,47 @@ function OverlayRuntime() {
     ctx.textBaseline = 'middle';
   }
 
-  function textString(v, vars) {
-    let s = substitute(v.text, vars);
-    if (v.upper) s = s.toUpperCase();
-    return s;
+  // Text after {variables}, with [c=#hex]colored[/c] markup split out into a per-letter color list.
+  function richText(v, vars) {
+    const src = substitute(v.text, vars);
+    let plain = '', color = null, last = 0;
+    const colors = [];
+    const re = /\[c=([^\]]+)\]|\[\/c\]/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const chunk = src.slice(last, m.index);
+      plain += chunk;
+      for (let i = 0; i < chunk.length; i++) colors.push(color);
+      color = m[1] ? m[1].trim() : null;
+      last = re.lastIndex;
+    }
+    const tail = src.slice(last);
+    plain += tail;
+    for (let i = 0; i < tail.length; i++) colors.push(color);
+    if (v.upper) plain = plain.toUpperCase();
+    return { plain, colors, colored: colors.some((c) => c) };
   }
+  function textString(v, vars) { return richText(v, vars).plain; }
 
   // Long usernames shrink instead of spilling out of the panel.
   function fitScale(ctx, v, lines) {
-    if (!v.fit || v.fit <= 0) return 1;
-    let w = 0;
-    for (const l of lines) w = Math.max(w, ctx.measureText(l).width);
-    return w > v.fit ? v.fit / w : 1;
+    let k = 1;
+    if (v.fit > 0) {
+      let w = 0;
+      for (const l of lines) w = Math.max(w, ctx.measureText(l).width);
+      if (w > v.fit) k = v.fit / w;
+    }
+    if (v.fitHeight > 0) {
+      const h = lines.length * v.size * 1.15;
+      if (h > v.fitHeight) k = Math.min(k, v.fitHeight / h);
+    }
+    return k;
   }
 
   const GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&@$<>/\\=+*';
   const widthCache = new Map();
+  // Letter widths measured before a web font finishes loading are wrong, so start over when fonts arrive.
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => widthCache.clear());
   function charWidths(ctx, line) {
     const key = ctx.font + '|' + (ctx.letterSpacing || '') + '|' + line;
     let ws = widthCache.get(key);
@@ -428,7 +541,12 @@ function OverlayRuntime() {
 
   function drawText(ctx, v, env, t) {
     setupText(ctx, v);
-    const lines = textLines(ctx, textString(v, env.vars), v.wrap);
+    const rich = richText(v, env.vars);
+    const lines = textLines(ctx, rich.plain, v.wrap);
+    // Where each wrapped line starts in the plain text, to look up letter colors.
+    const starts = [];
+    for (let i = 0, at = 0; i < lines.length; i++) { const f = rich.plain.indexOf(lines[i], at); starts.push(f < 0 ? at : f); at = (f < 0 ? at : f) + lines[i].length; }
+    const colorAt = (i) => rich.colors[i] || null;
     const k = fitScale(ctx, v, lines);
     if (k < 1) ctx.scale(k, k);
     const total = lines.reduce((n, l) => n + l.length, 0);
@@ -456,12 +574,16 @@ function OverlayRuntime() {
           if (budget === 0 && v.reveal < 1) cursor = true;
         }
         if (cursor) line += '▌';
-        if (v.outline > 0) {
-          ctx.lineWidth = v.outline * 2;
-          ctx.strokeStyle = v.outlineColor;
-          ctx.strokeText(line, 0, y);
+        if (rich.colored) {
+          drawRuns(ctx, v, line, y, starts[i], colorAt, fill);
+        } else {
+          if (v.outline > 0) {
+            ctx.lineWidth = v.outline * 2;
+            ctx.strokeStyle = v.outlineColor;
+            ctx.strokeText(line, 0, y);
+          }
+          ctx.fillText(line, 0, y);
         }
-        ctx.fillText(line, 0, y);
         y += lh;
       }
     } else {
@@ -499,6 +621,8 @@ function OverlayRuntime() {
           }
           ctx.save();
           ctx.globalAlpha *= alpha;
+          const col = colorAt(starts[li] + j);
+          if (col) ctx.fillStyle = col;
           if (sc !== 1 || rot) {
             ctx.translate(cx + dx, y + dy);
             if (rot) ctx.rotate(rot);
@@ -516,6 +640,28 @@ function OverlayRuntime() {
     finishText(ctx);
   }
   function finishText(ctx) { if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; }
+
+  // One line drawn as runs of same-colored letters.
+  function drawRuns(ctx, v, line, y, start, colorAt, fill) {
+    const w = ctx.measureText(line).width;
+    let x = v.align === 'left' ? 0 : v.align === 'right' ? -w : -w / 2;
+    const align = ctx.textAlign;
+    ctx.textAlign = 'left';
+    let i = 0;
+    while (i < line.length) {
+      const col = colorAt(start + i);
+      let j = i + 1;
+      while (j < line.length && colorAt(start + j) === col) j++;
+      const run = line.slice(i, j);
+      if (v.outline > 0) { ctx.lineWidth = v.outline * 2; ctx.strokeStyle = v.outlineColor; ctx.strokeText(run, x, y); }
+      ctx.fillStyle = col || fill;
+      ctx.fillText(run, x, y);
+      x += ctx.measureText(run).width;
+      i = j;
+    }
+    ctx.fillStyle = fill;
+    ctx.textAlign = align;
+  }
 
   function drawShape(ctx, v, t, layer) {
     const w = Math.max(0, v.width), h = Math.max(0, v.height);
@@ -540,13 +686,17 @@ function OverlayRuntime() {
     else if (kind === 'panel') polyPath(ctx, panelPts(w, h));
     else if (kind === 'hex') polyPath(ctx, hexPts(w, h));
     else if (kind === 'sparkle') polyPath(ctx, sparklePts(w, h));
+    else if (kind === 'bubble') {
+      ctx.lineJoin = 'round';
+      doodlePath(ctx, bubblePts(w, h, v.tail), (v.wobble || 0) * 2.2, 7, Math.floor(Math.max(0, t - layer.inPoint) * 8));
+    }
     else if (kind === 'circle') {
       ctx.beginPath();
       if (reveal < 1) { ctx.moveTo(0, 0); ctx.ellipse(0, 0, w / 2, h / 2, 0, -Math.PI / 2, endA); ctx.closePath(); }
       else ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
     }
 
-    if (kind === 'rect' || kind === 'panel' || kind === 'hex' || kind === 'circle' || kind === 'sparkle') {
+    if (kind === 'rect' || kind === 'panel' || kind === 'hex' || kind === 'circle' || kind === 'sparkle' || kind === 'bubble') {
       if (fillIt) ctx.fill();
       if (sw > 0) {
         if (fillIt) ctx.shadowBlur = 0;
@@ -670,6 +820,236 @@ function OverlayRuntime() {
       }
     }
     ctx.globalAlpha = base;
+  }
+
+  // ---------------------------------------------------------------- video layer
+  // The <video> follows the alert's clock: playing while the alert plays, seeking when scrubbed in the editor.
+  function syncVideo(vid, v, layer, env) {
+    const t = env.frameTime == null ? 0 : env.frameTime;
+    let want = Math.max(0, t - layer.inPoint) + (v.startAt || 0);
+    const dur = isFinite(vid.duration) ? vid.duration : 0;
+    if (dur) want = v.loop ? want % dur : Math.min(want, dur - 0.04);
+    vid.muted = vid._qpNoSound || !env.audio || !(v.volume > 0);
+    vid.volume = Math.max(0, Math.min(1, (v.volume == null ? 1 : v.volume) * (env.masterVolume == null ? 1 : env.masterVolume)));
+    vid.playbackRate = env.rate || 1;
+    vid._qpUsed = true;
+    if (env.playing) {
+      if ((vid.paused || vid.ended) && !vid._qpStarting) {
+        vid.currentTime = want;
+        vid._qpStarting = true;
+        const p = vid.play();
+        const done = () => { vid._qpStarting = false; };
+        if (p && p.then) {
+          p.then(done, () => {
+            // The browser blocked sound without a click (OBS doesn't): play muted instead of freezing.
+            vid._qpNoSound = true;
+            vid.muted = true;
+            vid.play().then(done, done);
+          });
+        } else done();
+      } else if (!vid._qpStarting && Math.abs(vid.currentTime - want) > 0.25) vid.currentTime = want;
+      else if (Math.abs(vid.currentTime - want) > 0.25) vid.currentTime = want;
+    } else {
+      if (!vid.paused) vid.pause();
+      if (Math.abs(vid.currentTime - want) > 0.02 && !vid.seeking) {
+        vid.currentTime = want;
+        if (env.onVideoSeek) vid.addEventListener('seeked', env.onVideoSeek, { once: true });
+      }
+    }
+  }
+
+  // Live chroma key into a scratch canvas, redone only when the video frame changes.
+  function keyedFrame(vid, v) {
+    const w = vid.videoWidth, h = vid.videoHeight;
+    let c = vid._qpKey;
+    if (!c || c.width !== w || c.height !== h) { c = vid._qpKey = document.createElement('canvas'); c.width = w; c.height = h; c._g = c.getContext('2d', { willReadFrequently: true }); }
+    const sig = vid.currentTime + '|' + v.keyColor + '|' + v.keyTolerance + '|' + v.keySoftness;
+    if (c._sig === sig) return c;
+    c._sig = sig;
+    const g = c._g;
+    g.clearRect(0, 0, w, h);
+    g.drawImage(vid, 0, 0, w, h);
+    const img = g.getImageData(0, 0, w, h), d = img.data;
+    const kc = parseInt(String(v.keyColor || '#16be28').slice(1), 16), kr = (kc >> 16) & 255, kg = (kc >> 8) & 255, kb = kc & 255;
+    // Compare colour (chroma) only, so shadows and highlights of the screen key out too.
+    const ky = 0.299 * kr + 0.587 * kg + 0.114 * kb, kU = kb - ky, kV = kr - ky;
+    const tol = Math.max(0, v.keyTolerance) * 180, soft = Math.max(1, v.keySoftness * 180);
+    const greenKey = kg > kr && kg > kb;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], gr = d[i + 1], b = d[i + 2];
+      const y = 0.299 * r + 0.587 * gr + 0.114 * b;
+      const dist = Math.hypot(b - y - kU, r - y - kV);
+      let a = (dist - tol) / soft;
+      a = a < 0 ? 0 : a > 1 ? 1 : a;
+      if (greenKey && a < 1) { const m = r > b ? r : b; if (gr > m) d[i + 1] = m; }   // remove green spill on edges
+      d[i + 3] = d[i + 3] * a;
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
+  function drawVideo(ctx, v, env, layer) {
+    const w = Math.max(0, v.width), h = Math.max(0, v.height);
+    if (w < 1 || h < 1) return;
+    const vid = env.videos && env.videos[v.asset];
+    if (!vid || vid.readyState < 2) {
+      ctx.fillStyle = 'rgba(10,20,35,0.6)';
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+      ctx.fillStyle = '#9fe8ff';
+      ctx.font = '600 ' + Math.max(12, Math.round(h * 0.05)) + 'px Rajdhani, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(vid ? 'Loading video...' : 'Pick a video for this layer', 0, 0);
+      if (vid) syncVideo(vid, v, layer, env);
+      return;
+    }
+    syncVideo(vid, v, layer, env);
+    ctx.shadowBlur = 0;
+    ctx.drawImage(v.chroma ? keyedFrame(vid, v) : vid, -w / 2, -h / 2, w, h);
+  }
+
+  function loadVideos(assets, cache) {
+    cache = cache || {};
+    const jobs = [];
+    for (const id in assets) {
+      const a = assets[id];
+      if (a.type !== 'video') continue;
+      if (!a.data) { delete cache[id]; continue; }
+      if (cache[id] && cache[id]._src === a.data) continue;
+      const vid = document.createElement('video');
+      vid._src = a.data;
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.preload = 'auto';
+      vid.crossOrigin = 'anonymous';
+      cache[id] = vid;
+      jobs.push((async () => {
+        try {
+          // A blob URL is much lighter than a huge data: URL.
+          vid.src = a.data.startsWith('data:') ? URL.createObjectURL(await (await fetch(a.data)).blob()) : a.data;
+          await new Promise((res) => { vid.addEventListener('loadeddata', res, { once: true }); vid.addEventListener('error', res, { once: true }); setTimeout(res, 8000); });
+        } catch (e) { /* stays as a placeholder */ }
+      })());
+    }
+    return { cache, ready: Promise.all(jobs) };
+  }
+  function stopVideos(cache) {
+    for (const id in cache || {}) { const vid = cache[id]; if (!vid.paused) vid.pause(); vid._qpUsed = false; }
+  }
+
+  // ---------------------------------------------------------------- cartoon dog mascot (doodle style)
+  // A bust of the dog in a thick-outlined, hand-drawn GIF style: blinks, twitches an ear, bobs, and talks.
+  // Every idle motion repeats within this many seconds, so exported GIFs loop seamlessly.
+  const MASCOT_LOOP = Math.PI * 2 / 1.5;
+  function drawMascot(ctx, v, t, layer) {
+    const u = Math.min(v.width, v.height / 1.7);
+    if (u < 4) return;
+    const lt = Math.max(0, t - layer.inPoint) * (v.speed == null ? 1 : v.speed);
+    const frame = v.wobble > 0 ? Math.floor(Math.max(0, t - layer.inPoint) * 8) : 0;
+    const wob = Math.max(0, v.wobble) * u * 0.007;
+    const lw = Math.max(1, u * 0.024 * (v.lineWidth == null ? 1 : v.lineWidth));
+    const ink = v.outline;
+    const excited = v.pose === 'excited';
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+    let seed = 1;
+    const sc = (pts) => pts.map(([x, y]) => [x * u, y * u]);
+    const shape = (pts, fill, stroke, closed) => {
+      doodlePath(ctx, sc(pts), wob, seed++, frame, closed);
+      if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+      if (stroke !== false) { ctx.strokeStyle = ink; ctx.lineWidth = lw; ctx.stroke(); }
+    };
+    const line = (pts, color, width) => {
+      doodlePath(ctx, sc(pts), wob, seed++, frame, false);
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+    };
+    ctx.shadowBlur = 0;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.translate(0, -0.17 * u);   // centre the bust in the layer box
+
+    // Body, cut off flat at the bottom like a portrait bust: neck and shoulders, cream chest, vest and harness.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-0.7 * u, -1.2 * u, 1.4 * u, 2.2 * u - lw / 2);
+    ctx.clip();
+    shape([[-0.52, 1.15], [-0.48, 0.72], [-0.4, 0.5], [-0.24, 0.36], [-0.14, 0.18], [0.14, 0.18], [0.24, 0.36], [0.4, 0.5], [0.48, 0.72], [0.52, 1.15]], v.fur);
+    shape([[-0.13, 0.28], [0.13, 0.28], [0.09, 0.6], [0, 0.68], [-0.09, 0.6]], v.cream, false);
+    if (v.vestOn) {
+      shape([[-0.53, 1.15], [-0.5, 0.72], [-0.41, 0.53], [-0.24, 0.55], [-0.09, 0.7], [0, 0.74], [0.09, 0.7], [0.24, 0.55], [0.41, 0.53], [0.5, 0.72], [0.53, 1.15]], v.vest);
+      line([[-0.42, 0.8], [-0.3, 0.86], [-0.14, 0.9]], 'rgba(255,255,255,0.35)', lw * 0.9);   // vest shine
+      line([[-0.4, 0.54], [-0.22, 0.61], [0, 0.65], [0.22, 0.61], [0.4, 0.54]], v.harness, lw * 2.3);
+      shape([[0.14, 0.57], [0.23, 0.56], [0.245, 0.65], [0.155, 0.66]], '#c9ced6');
+    }
+    ctx.restore();
+    // The flat bottom edge.
+    line([[-0.53, 1.0], [0, 1.0], [0.53, 1.0]], ink, lw);
+
+    // Head group: bobs and tilts around the neck.
+    ctx.save();
+    const bob = Math.sin(lt * 3) * 0.012 - (excited ? Math.abs(Math.sin(lt * 6)) * 0.035 : 0);
+    const tilt = Math.sin(lt * 1.5) * 0.05 + (excited ? Math.sin(lt * 6) * 0.05 : 0);
+    ctx.translate(0, (bob + 0.3) * u);
+    ctx.rotate(tilt);
+    ctx.translate(0, -0.3 * u);
+
+    // Ears (behind the head). The right ear twitches now and then.
+    const tp = lt % (MASCOT_LOOP / 2);
+    const twitch = tp < 0.28 ? Math.sin(tp / 0.28 * Math.PI) : 0;
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(side * 0.17 * u, -0.16 * u);
+      ctx.rotate(side * (0.1 + (side === 1 ? twitch * 0.28 : 0) + (excited ? Math.sin(lt * 6) * 0.06 : 0)));
+      const ear = v.ears === 'floppy'
+        ? [[-0.1, 0.02], [0.09, -0.03], [0.17, 0.12], [0.13, 0.3], [0.04, 0.32], [-0.02, 0.16]]
+        : [[-0.11, 0.04], [0.1, 0.0], [0.13, -0.2], [0.09, -0.4], [0.02, -0.48], [-0.06, -0.32]];
+      const mir = (pts) => pts.map(([x, y]) => [x * side, y]);
+      shape(mir(ear), v.fur);
+      const inner = ear.map(([x, y]) => [x * 0.55 + 0.005, y * 0.62 + 0.02]);
+      shape(mir(inner), v.ears === 'floppy' ? v.furDark : v.innerEar, false);
+      ctx.restore();
+    }
+
+    // Face.
+    const head = [];
+    for (let i = 0; i < 26; i++) {
+      const a = i / 26 * Math.PI * 2, sn = Math.sin(a);
+      head.push([Math.cos(a) * 0.31 * (1 + 0.07 * Math.max(0, sn)), sn * 0.27 - 0.02 + Math.max(0, sn) * 0.03]);
+    }
+    shape(head, v.fur);
+    ctx.globalAlpha *= 0.55;
+    shape(ellPts(0, -0.2, 0.11, 0.05, 12), v.furDark, false);
+    ctx.globalAlpha /= 0.55;
+    for (const side of [-1, 1]) shape(ellPts(side * 0.12, -0.135, 0.042, 0.024, 10), v.cream, false);
+
+    // Eyes: blink every few seconds; happy arcs when excited.
+    const bp = lt % MASCOT_LOOP;
+    const blink = bp > MASCOT_LOOP - 0.3 && bp < MASCOT_LOOP - 0.15 ? 1 - Math.abs(bp - (MASCOT_LOOP - 0.225)) / 0.075 : 0;
+    for (const side of [-1, 1]) {
+      const ex = side * 0.12, ey = -0.05;
+      if (excited || blink > 0.8) {
+        line([[ex - 0.05, ey + (excited ? 0.015 : 0)], [ex, ey - (excited ? 0.03 : 0)], [ex + 0.05, ey + (excited ? 0.015 : 0)]], ink, lw * 1.1);
+      } else {
+        const open = 1 - blink;
+        shape(ellPts(ex, ey, 0.052, 0.062 * open, 16), v.eye);
+        shape(ellPts(ex - side * 0.012 - 0.008, ey - 0.022 * open, 0.017, 0.017 * open, 8), '#ffffff', false);
+      }
+    }
+
+    // Black muzzle, nose and mouth.
+    shape(ellPts(0, 0.135, 0.145, 0.105, 22), v.mask);
+    shape(ellPts(0, 0.02, 0.05, 0.055, 10), v.fur, false);
+    const talk = clamp01(v.talk);
+    const open = excited ? 0.6 : talk * clamp01(0.55 + 0.45 * Math.sin(lt * 18 + Math.sin(lt * 4.5) * 2));
+    if (open > 0.06) {
+      const my = 0.18 + open * 0.02, ry = 0.015 + 0.06 * open;
+      shape(ellPts(0, my, 0.075, ry, 16), '#4a1018');
+      shape(ellPts(0, my + ry * 0.45, 0.045, ry * 0.5, 12), '#f07a8c', false);
+    } else {
+      line([[-0.07, 0.155], [-0.035, 0.178], [0, 0.163], [0.035, 0.178], [0.07, 0.155]], '#6d5a4c', lw * 0.9);
+    }
+    shape([[-0.058, 0.048], [0.058, 0.048], [0.036, 0.094], [0, 0.112], [-0.036, 0.094]], '#0d0907');
+    shape(ellPts(-0.02, 0.062, 0.014, 0.009, 8), 'rgba(255,255,255,0.75)', false);
+    ctx.restore();
   }
 
   // ---------------------------------------------------------------- cartoon dog emote
@@ -884,6 +1264,8 @@ function OverlayRuntime() {
   function drawContent(g, layer, v, t, env) {
     if (layer.type === 'image') drawImage(g, v, env, layer, t);
     else if (layer.type === 'emote') drawEmote(g, v, t, layer);
+    else if (layer.type === 'mascot') drawMascot(g, v, t, layer);
+    else if (layer.type === 'video') drawVideo(g, v, env, layer);
     else if (layer.type === 'text') drawText(g, v, env, t);
     else if (layer.type === 'shape') drawShape(g, v, t, layer);
     else if (layer.type === 'particles') drawParticles(g, v, t, layer);
@@ -963,6 +1345,7 @@ function OverlayRuntime() {
     if (layer.type === 'text') pad += (v.size || 0) * sc * (v.animator !== 'none' && v.progress < 1 ? 1.7 : 0.35);
     else if (layer.type === 'shape') pad += ((v.strokeWidth || 0) * 7 + (v.kind === 'ring' ? 20 : 0)) * sc;
     else if (layer.type === 'emote') pad += (x1 - x0) * 0.25;
+    else if (layer.type === 'mascot') pad += 12 * sc;
     else if (layer.type === 'image') pad += ((v.border || 0) + 2) * sc;
     if (glitchOn) pad += 110;
     const x = Math.max(0, Math.floor(x0 - pad)), y = Math.max(0, Math.floor(y0 - pad));
@@ -1070,6 +1453,7 @@ function OverlayRuntime() {
   // Layers are stored top-first (like After Effects), so draw them in reverse.
   function render(ctx, alert, t, env) {
     const W = env.width || 1920, H = env.height || 1080;
+    env.frameTime = t;   // videos sync to this, not to motion-blur sub-samples
     const byId = layerIndex(alert);
     const t0 = ctx.getTransform();
     const base = new DOMMatrix([t0.a, t0.b, t0.c, t0.d, t0.e, t0.f]).multiply(alertMatrix(alert, W, H));
@@ -1080,9 +1464,10 @@ function OverlayRuntime() {
       if (!layerActive(layer, t)) continue;
       const v = evalLayer(layer, t);
       if (v.opacity <= 0) continue;
+      if (v.onlyIf && !String((env.vars || {})[v.onlyIf] || '').trim()) continue;
       const blend = v.blend || 'source-over';
       let samples = 0;
-      if (full && v.motionBlur) {
+      if (full && v.motionBlur && layer.type !== 'video') {
         const px = motionPx(layer, t, SHUTTER, byId, screenBox(ctx, base, layer, t, env, byId));
         if (px > 0.8) samples = Math.max(2, Math.min(MB_SAMPLES, Math.ceil(px / 5) + 1));
       }
@@ -1189,6 +1574,19 @@ function OverlayRuntime() {
   }
 
   const SYNTHS = {
+    boing(ac, out, at) {
+      // Cartoon spring: a wobbly rising tone, plus a little pop.
+      const o = ac.createOscillator(), g = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(170, at + 0.35);
+      o.frequency.exponentialRampToValueAtTime(560, at + 0.75);
+      lfo.frequency.value = 22; lg.gain.value = 40;
+      lfo.connect(lg).connect(o.frequency);
+      env(ac, g, at + 0.35, 0.45, 0.02, 0.55);
+      o.connect(g).connect(out);
+      o.start(at + 0.35); o.stop(at + 1.0); lfo.start(at + 0.35); lfo.stop(at + 1.0);
+      tone(ac, out, 'triangle', 900, 1400, at + 0.62, 0.08, 0.25);
+    },
     none: null,
     quantum(ac, out, at) {
       // Spool-up whoosh, then the quantum exit boom.
@@ -1221,7 +1619,7 @@ function OverlayRuntime() {
       tone(ac, out, 'sine', 120, 35, at + 1.0, 1.0, 0.9);
     },
   };
-  const SYNTH_LABELS = { none: 'None', quantum: 'Quantum jump (whoosh + boom)', chirp: 'Comm chirp', hail: 'Incoming hail', alarm: 'Red alert klaxon' };
+  const SYNTH_LABELS = { boing: 'Cartoon boing', none: 'None', quantum: 'Quantum jump (whoosh + boom)', chirp: 'Comm chirp', hail: 'Incoming hail', alarm: 'Red alert klaxon' };
 
   // Plays an alert's sound; returns a stop() function.
   function playSound(sound, assets, master, offset) {
@@ -1438,7 +1836,7 @@ function OverlayRuntime() {
     opts = opts || {};
     const log = opts.log || function () {};
     const url = 'ws://' + (opts.host || '127.0.0.1') + ':' + (opts.port || 8080) + '/';
-    const events = opts.cheersOnly ? ['Cheer'] : ['Follow', 'Cheer', 'Sub', 'ReSub', 'GiftSub', 'GiftBomb', 'Raid'];
+    const events = opts.cheersOnly ? ['Cheer'] : ['Follow', 'Cheer', 'Sub', 'ReSub', 'GiftSub', 'GiftBomb', 'Raid', 'RewardRedemption'];
     if (opts.chatTest && !opts.cheersOnly) events.push('ChatMessage');
     let backoff = 2000, warned = false;
 
@@ -1462,6 +1860,11 @@ function OverlayRuntime() {
         onEvent({ type: 'giftbomb', user: d.isAnonymous || d.anonymous ? 'An anonymous pilot' : user,
           count: String(d.gifts || d.total || d.count || d.amount || 1), tier: tierName(d.subTier || d.tier || d.sub_tier) });
       } else if (type === 'Raid') onEvent({ type: 'raid', user, viewers: String(d.viewers || d.viewerCount || d.viewer_count || 0) });
+      else if (type === 'RewardRedemption') {
+        const rw = d.reward && typeof d.reward === 'object' ? d.reward : {};
+        onEvent({ type: 'redeem', user, reward: rw.title || rw.name || d.rewardName || d.title || 'a reward',
+          message: d.user_input || d.userInput || d.input || '' });
+      }
       else if (type === 'ChatMessage' && opts.onTest) {
         const m = d.message && typeof d.message === 'object' ? d.message : d;
         const text = sbText(d);
@@ -1559,6 +1962,10 @@ function OverlayRuntime() {
         const dd = ev.data || ev;
         cheerOnce('event', { type: 'cheer', user: dd.displayName || dd.username || dd.name, bits: bitsOf(dd.amount), message: dd.message || '' }, [dd.displayName, dd.username, dd.name]);
       } else if (L === 'raid-latest') onEvent({ type: 'raid', user: ev.name, viewers: String(ev.amount) });
+      else if (L === 'event' && (ev.type === 'channelPointsRedemption' || ev.type === 'channel-points-redemption')) {
+        const dd = ev.data || ev;
+        onEvent({ type: 'redeem', user: dd.displayName || dd.username || dd.name, reward: dd.redemption || dd.rewardTitle || (dd.reward && dd.reward.title) || dd.item || 'a reward', message: dd.message || dd.userInput || '' });
+      }
       else if (L === 'message' && ev.data) {
         const data = ev.data, tags = data.tags || {};
         if (tags.bits) {
@@ -1712,9 +2119,10 @@ function OverlayRuntime() {
     if (config.token) TwitchFollows(config.token, enqueue, log);
 
     const { cache: images, ready } = loadImages(project.assets);
+    const { cache: videos, ready: videosReady } = loadVideos(project.assets);
     const assetNames = {};
     for (const id in project.assets) assetNames[id] = project.assets[id].name;
-    await ready;
+    await Promise.all([ready, videosReady]);
     try {
       await Promise.race([
         Promise.all(usedFonts(project).map((f) => document.fonts.load('700 40px "' + f + '"'))),
@@ -1740,9 +2148,13 @@ function OverlayRuntime() {
         current.t += dt * rate();
         if (current.t >= current.alert.duration) {
           current = null;
+          stopVideos(videos);
           cooldownUntil = now + (config.gap == null ? 1 : config.gap) * 1000 / rate();
         } else {
-          render(ctx, current.alert, current.t, { width: W, height: H, images, assetNames, vars: current.ev, quality: config.quality || 'high' });
+          render(ctx, current.alert, current.t, {
+            width: W, height: H, images, videos, assetNames, vars: current.ev, quality: config.quality || 'high',
+            playing: true, audio: true, rate: rate(), masterVolume: config.volume == null ? 0.8 : config.volume,
+          });
         }
       }
       requestAnimationFrame(frame);
@@ -1755,6 +2167,6 @@ function OverlayRuntime() {
   return {
     EASES, EASE_LABELS, BEZIER_PRESETS, EASY_EASE, FONTS, SCHEMA, TRANSFORM_KEYS, EFFECT_KEYS, ALERT_TYPES, SAMPLE_VARS, SYNTHS, SYNTH_LABELS,
     uid, makeLayer, fieldDef, evalProp, keyedValue, evalLayer, substitute, render, layerBounds, layerActive, cubicBezier,
-    alertMatrix, worldMatrix, layerIndex, applyAlertTransform, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
+    alertMatrix, worldMatrix, layerIndex, applyAlertTransform, MASCOT_LOOP, loadVideos, stopVideos, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
   };
 }

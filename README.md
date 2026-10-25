@@ -163,6 +163,66 @@ Exports default to **High**: motion blur plus bloom glow. If OBS ever stutters w
 export again with **Export overlay → Options → Render quality → Standard**. Standard uses the old lightweight glow
 and no motion blur. Everything else, including decoding text, sweeps, glitches and emotes, stays the same.
 
+## Standard alert: the typing dog video
+
+Every alert type starts from your **typing dog video**: the cartoon dog in the red headband, typing at a computer,
+with the green screen keyed out. When its speech bubble pops up, the alert's words type into it, and they follow the
+bubble as it pops in, wiggles and pops out:
+
+| Alert | The dog says |
+| --- | --- |
+| Follow | **{user}** just followed! |
+| Sub | **{user}** subscribed! Welcome to the Big Dogs! |
+| Resub | **{user}** resubbed for 14 months! *(plus a small bubble with their message)* |
+| Gift Sub | **{user}** gifted a sub to {recipient}! |
+| Gift Bomb | **{user}** gifted 10 subs! |
+| Cheer | **{user}** cheered 500 bits! *(plus their message)* |
+| Redeem | **{user}** used Bezos Money! *(plus their message)* |
+| Raid | **{user}** is raiding with 87! Let's throw some ass! |
+
+To change the words, click the **Bubble text** layer. The video sits in the bottom-right corner; move it with
+**Alert settings → Move all X/Y** or **Scale all**. The video's own typing sounds play as the alert sound.
+
+- **Other looks:** pick one under **Alert settings → Template** (*Typing dog video*, *Cartoon doodle dog* or
+  *Star Citizen HUD*), then click **Use template**.
+- **Your own videos:** use **+ Video** in the media library, add a **Video** layer and pick the clip. If it has a green
+  background, tick **Green screen key** and adjust **Key tolerance** until the green is gone.
+- **The file:** `video/typing-dog.webm` already has the green removed (transparent background, with sound). The
+  editor loads it automatically when you open it from its web address (GitHub Pages). On a double-clicked copy,
+  add it once with **+ Video**.
+- **StreamElements:** the video makes the alert code about 2 MB, too big to paste. Use **Code won't save?**, the tiny
+  code plus `alerts.json` on GitHub. The **Streamer.bot** and **OBS file** exports have no size problem.
+
+## Redeem alert and the cartoon dog
+
+The **Redeem** alert is for channel point rewards. A hand-drawn cartoon of your dog pops up in the bottom-left corner
+and "says" it in a speech bubble: **so_hey** used **Bezos Money!**. A smaller bubble underneath shows the viewer's
+message, only when they typed one. The bubble outlines wobble a few times a second, like a hand-drawn GIF.
+
+- **Change the cartoon:** the **Cartoon dog** layer has settings for fur, dark fur, muzzle, chest, inner ears, eyes,
+  ear style (perky or floppy), vest and harness colors, line thickness, and how wobbly the lines are. To make your other
+  dogs, add another **Cartoon dog** layer (button above the canvas) and change the colors.
+  - **Pose:** *Idle* blinks, twitches an ear, bobs and tilts. *Excited* bounces with happy eyes and an open mouth.
+  - **Talking:** animate this 0 to 1 to make the mouth flap.
+- **Colored words:** wrap them like `[c=#e8405a]{user}[/c] used {reward}!`.
+- **Hide a layer when there's no message:** Effects → **Show → Only if there is a {message}**.
+- **Where redeems come from:** **Streamer.bot**, which sees channel point rewards (export with the Streamer.bot tab).
+  StreamElements custom widgets may not get channel point events. Test with `!testalert redeem`.
+
+### The cartoon as image files
+
+`art/` has the cartoon on its own as looping animations with transparent backgrounds. Use them anywhere: Discord,
+StreamElements' image alerts, stream panels.
+
+| File | What it is |
+| --- | --- |
+| `art/dog-idle.webp` / `.gif` | Blinking, ear twitch, gentle bob |
+| `art/dog-talking.webp` / `.gif` | Mouth flapping |
+| `art/dog-excited.webp` / `.gif` | Bouncy, happy eyes |
+| `art/dog-*.png` | A still frame of each |
+
+The `.webp` files have smooth transparent edges. The `.gif` files work everywhere but have hard edges.
+
 ## Perfect Landing (Stream Deck alert)
 
 `perfect-landing/` has a separate, self-playing **PERFECT LANDING** alert with the Ironclad touching down.

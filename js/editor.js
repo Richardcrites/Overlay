@@ -4,8 +4,8 @@
 
   const RT = OverlayRuntime();
   const W = 1920, H = 1080;
-  const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Audiowide&family=Bebas+Neue&family=Exo+2:ital,wght@0,400;0,600;0,700;0,900;1,600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Share+Tech+Mono&display=swap';
-  const TYPE_ICON = { image: '\u{1F415}', text: 'T', shape: '▢', particles: '✨', emote: '\u{1F436}' };
+  const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Audiowide&family=Comic+Neue:wght@400;700&family=Patrick+Hand&family=Bebas+Neue&family=Exo+2:ital,wght@0,400;0,600;0,700;0,900;1,600&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Share+Tech+Mono&display=swap';
+  const TYPE_ICON = { image: '\u{1F415}', text: 'T', shape: '▢', particles: '✨', emote: '\u{1F436}', mascot: '\u{1F58D}', video: '\u{1F3AC}' };
 
   // ---------------------------------------------------------------- helpers
   const $ = (s, r) => (r || document).querySelector(s);
@@ -78,7 +78,7 @@
   function normalize(p) {
     const base = makeProject(RT);
     p.assets = p.assets || {};
-    for (const id of ['dog1', 'dog2', 'dog3']) if (!p.assets[id]) p.assets[id] = base.assets[id];
+    for (const id of ['dog1', 'dog2', 'dog3', 'vid_typingdog']) if (!p.assets[id]) p.assets[id] = base.assets[id];
     p.alerts = p.alerts || {};
     for (const a of RT.ALERT_TYPES) {
       if (!p.alerts[a.id]) p.alerts[a.id] = base.alerts[a.id];
@@ -92,10 +92,31 @@
     return p;
   }
 
+  let videos = {};
   function refreshImages() {
     const r = RT.loadImages(P.assets, images);
     images = r.cache;
     r.ready.then(markDirty);
+    const rv = RT.loadVideos(P.assets, videos);
+    videos = rv.cache;
+    rv.ready.then(markDirty);
+  }
+  // The typing-dog video ships with the editor (video/typing-dog.webm); copy it into the project on first use.
+  async function ensureBundledVideos() {
+    for (const id in P.assets) {
+      const a = P.assets[id];
+      if (a.type !== 'video' || a.data || !a.builtin) continue;
+      try {
+        const r = await fetch(a.builtin);
+        if (!r.ok) throw new Error(r.status);
+        a.data = await readDataUrl(await r.blob());
+        refreshImages();
+        scheduleSave();
+        renderAssets();
+      } catch (e) {
+        toast('Couldn\'t load the built-in typing dog video. Open the editor from its web address (GitHub Pages), or add the video with "+ Video".', 8000);
+      }
+    }
   }
   function assetNames() {
     const o = {};
@@ -195,6 +216,8 @@
   function pause() {
     S.playing = false;
     stopSound();
+    RT.stopVideos(videos);
+    markDirty();
     $('#btnPlay').innerHTML = '&#x25B6;';
     updateTimeUI();
   }
@@ -256,7 +279,10 @@
     ctx.restore();
     const al = alertObj();
     const draft = S.playing && !$('#chkQuality').checked;
-    RT.render(ctx, al, S.time, { width: W, height: H, images, assetNames: assetNames(), vars: S.vars[S.type], quality: draft ? 'draft' : 'full' });
+    RT.render(ctx, al, S.time, {
+      width: W, height: H, images, videos, assetNames: assetNames(), vars: S.vars[S.type], quality: draft ? 'draft' : 'full',
+      playing: S.playing, audio: S.playing && $('#chkSound').checked, masterVolume: P.settings.volume, onVideoSeek: markDirty,
+    });
     drawSelection();
   }
 
@@ -389,6 +415,7 @@
   }
   function switchType(id) {
     if (S.playing) pause();
+    RT.stopVideos(videos);
     S.type = id;
     S.sel = null;
     S.selKey = null;
@@ -426,6 +453,19 @@
     renderInspector();
     toast(transparent ? 'Transparent photo: showing it as a cut-out with no frame. Untick "Cut-out" for the round frame.' : 'Image added', transparent ? 6000 : 2600);
     return assetId;
+  }
+  async function importVideo(file) {
+    if (!file || !file.type.startsWith('video/')) { toast('That file is not a video'); return; }
+    if (file.size > 8e6) toast('Big video: short clips keep the overlay light. StreamElements needs the "tiny code" option for videos.', 6000);
+    const data = await readDataUrl(file);
+    const id = RT.uid('vid');
+    P.assets[id] = { type: 'video', name: file.name.replace(/\.[^.]+$/, '').slice(0, 30), data };
+    refreshImages();
+    scheduleSave();
+    renderAssets();
+    renderInspector();
+    toast('Video added. Add a "Video" layer, pick it, and tick "Green screen key" if it has a green background.', 6000);
+    return id;
   }
   async function importSound(file) {
     if (!file || !file.type.startsWith('audio/')) { toast('That file is not an audio file'); return; }
@@ -482,7 +522,7 @@
     for (const id of ids) {
       const a = P.assets[id];
       lib.append(el('div', { class: 'lib-item' },
-        a.type === 'image' ? el('img', { src: a.data, alt: '' }) : el('button', { class: 'icon', title: 'Play', onclick: () => RT.playSound({ asset: id, synth: 'none', volume: 1 }, P.assets, P.settings.volume) }, '▶'),
+        a.type === 'image' ? el('img', { src: a.data, alt: '' }) : a.type === 'video' ? el('span', { class: 'ico', title: 'Video' }, '\u{1F3AC}') : el('button', { class: 'icon', title: 'Play', onclick: () => RT.playSound({ asset: id, synth: 'none', volume: 1 }, P.assets, P.settings.volume) }, '▶'),
         el('input', { class: 'name', value: a.name, oninput: (e) => { a.name = e.target.value; scheduleSave(); }, onchange: () => { renderInspector(); renderAlertSettings(); } }),
         el('button', {
           class: 'icon danger', title: 'Delete',
@@ -521,6 +561,7 @@
       field('Sound file', el('select', { onchange: (e) => { al.sound.asset = e.target.value || null; commit(); } }, soundOpts)),
       field('File delay (s)', numInput(al.sound.delay || 0, 0.1, (v) => { al.sound.delay = Math.max(0, v); }, { min: 0 })),
       field('Volume', el('input', { type: 'range', min: 0, max: 1.5, step: 0.05, value: al.sound.volume, oninput: (e) => { al.sound.volume = parseFloat(e.target.value); }, onchange: () => commit() })),
+      field('Template', el('select', { id: 'tplStyle' }, TEMPLATE_STYLES.map(([k, lbl]) => el('option', { value: k, selected: (al.style || 'hud') === k }, lbl)))),
       field('Move all X', numInput(al.offset.x, 5, (v) => { al.offset.x = v; })),
       field('Move all Y', numInput(al.offset.y, 5, (v) => { al.offset.y = v; })),
       field('Scale all', numInput(al.offset.scale, 0.05, (v) => { al.offset.scale = clamp(v, 0.1, 4); }, { min: 0.1 })),
@@ -528,12 +569,17 @@
         el('button', { onclick: () => { RT.playSound(al.sound, P.assets, P.settings.volume); } }, '\u{1F50A} Test sound'),
         el('button', {
           onclick: () => {
-            if (!confirm('Reset the ' + S.type + ' alert to the built-in Star Citizen template?')) return;
-            P.alerts[S.type] = makeTemplate(RT, S.type);
+            const style = $('#tplStyle').value;
+            const label = TEMPLATE_STYLES.find((x) => x[0] === style)[1];
+            if (!confirm('Replace the ' + S.type + ' alert with the "' + label + '" template?')) return;
+            const fresh = makeTemplate(RT, S.type, style);
+            fresh.enabled = al.enabled;
+            if (al.sound.asset) fresh.sound = al.sound;
+            P.alerts[S.type] = fresh;
             S.sel = null; S.selKey = null;
             commit();
           },
-        }, 'Reset to template'),
+        }, 'Use template'),
         el('button', { title: 'Copy this design to the other alert types, keeping their own text', onclick: copyToAll }, 'Copy design to all'),
       ),
     );
@@ -601,7 +647,7 @@
     const fields = RT.SCHEMA[L.type];
     const tk = new Set(RT.TRANSFORM_KEYS), ek = new Set(RT.EFFECT_KEYS);
     box.append(sec('Transform', fields.filter((f) => tk.has(f.key)).map((f) => propRow(L, f))));
-    box.append(sec({ image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote' }[L.type], fields.filter((f) => !tk.has(f.key) && !ek.has(f.key)).map((f) => propRow(L, f))));
+    box.append(sec({ image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote', mascot: 'Cartoon dog', video: 'Video' }[L.type], fields.filter((f) => !tk.has(f.key) && !ek.has(f.key)).map((f) => propRow(L, f))));
     box.append(sec('Effects', fields.filter((f) => ek.has(f.key)).map((f) => propRow(L, f))));
 
     const sk = S.selKey;
@@ -738,6 +784,23 @@
     } else if (f.type === 'select') {
       input = el('select', { onchange: (e) => { live(e.target.value); commit(); } },
         f.options.map(([v, lbl]) => el('option', { value: v, selected: String(value) === String(v) }, lbl)));
+    } else if (f.type === 'video') {
+      const opts = [el('option', { value: '' }, '(pick a video)')].concat(Object.keys(P.assets).filter((id) => P.assets[id].type === 'video')
+        .map((id) => el('option', { value: id, selected: value === id }, P.assets[id].name)));
+      opts.push(el('option', { value: '__upload' }, '+ Upload new video...'));
+      input = el('select', {
+        onchange: async (e) => {
+          if (e.target.value === '__upload') {
+            e.target.value = value;
+            const file = await pickFile($('#fileVideo'));
+            const id = file && (await importVideo(file));
+            if (id) { live(id); commit(); }
+            return;
+          }
+          live(e.target.value);
+          commit();
+        },
+      }, opts);
     } else if (f.type === 'asset') {
       const opts = Object.keys(P.assets).filter((id) => P.assets[id].type === 'image')
         .map((id) => el('option', { value: id, selected: value === id }, (P.assets[id].crew ? '\u{1F43E} ' : '') + P.assets[id].name));
@@ -839,9 +902,11 @@
       shape: { kind: 'panel', x: 960, y: 540, width: 600, height: 160 },
       particles: { kind: 'stars', x: 960, y: 540, count: 120 },
       emote: { expression: 'wink', x: 960, y: 540, glow: 14 },
+      mascot: { x: 960, y: 600 },
+      video: { asset: Object.keys(P.assets).find((id) => P.assets[id].type === 'video') || '', x: 960, y: 540, scale: 0.8 },
     }[type];
     const n = al.layers.filter((l) => l.type === type).length + 1;
-    const name = { image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote' }[type] + ' ' + n;
+    const name = { image: 'Image', text: 'Text', shape: 'Shape', particles: 'Particles', emote: 'Dog emote', mascot: 'Cartoon dog', video: 'Video' }[type] + ' ' + n;
     const L = RT.makeLayer(type, name, defaults, { inPoint: 0, outPoint: al.duration });
     const idx = S.sel ? al.layers.findIndex((l) => l.id === S.sel) : 0;
     al.layers.splice(Math.max(0, idx), 0, L);
@@ -1092,7 +1157,7 @@
       const al = P.alerts[k];
       if (!al.enabled) continue;
       if (al.sound.asset) used.add(al.sound.asset);
-      for (const l of al.layers) if (l.type === 'image') used.add(l.props.asset);
+      for (const l of al.layers) if (l.type === 'image' || l.type === 'video') used.add(l.props.asset);
     }
     return used;
   }
@@ -1335,7 +1400,7 @@
     const kb = Math.round(js.length / 1024);
     if (ok) {
       st.textContent = '\u2714 Copied (' + kb + ' KB). Now paste it into the StreamElements JS tab.' +
-        (kb > 150 ? ' This is on the big side. If StreamElements won\'t save it, use "Code won\'t save?" below.' : '');
+        (kb > 600 ? ' It includes a video, which is too big to paste. Use "Code won\'t save?" below (the tiny code) instead.' : kb > 150 ? ' This is on the big side. If StreamElements won\'t save it, use "Code won\'t save?" below.' : '');
       st.style.color = kb > 150 ? '#ffc94a' : '#5cffb0';
     } else {
       download('quantum-paws-streamelements.js', js, 'text/javascript');
@@ -1397,6 +1462,7 @@
   $('#btnStart').addEventListener('click', () => { pause(); setTime(0); });
   $('#btnAddImage').addEventListener('click', async () => { const f = await pickFile($('#fileImage')); if (f) importImage(f); });
   $('#btnAddSound').addEventListener('click', async () => { const f = await pickFile($('#fileSound')); if (f) importSound(f); });
+  $('#btnAddVideo').addEventListener('click', async () => { const f = await pickFile($('#fileVideo')); if (f) importVideo(f); });
   $('#bgSelect').addEventListener('change', (e) => { S.bg = e.target.value; markDirty(); });
   for (const b of document.querySelectorAll('[data-add]')) b.addEventListener('click', () => addLayer(b.dataset.add));
 
@@ -1472,18 +1538,19 @@
     if (back) { openExport(); toast('Connected to Twitch'); }
     else if (!stored) toast('Welcome! Start by uploading photos of your 3 dogs on the left.', 6000);
     else if ((P.templateVersion || 1) < TEMPLATE_VERSION) setTimeout(offerTemplateUpgrade, 600);
+    ensureBundledVideos();
   }
 
   function offerTemplateUpgrade() {
-    const yes = confirm('New, higher-quality look for your alerts: motion blur, bloom glow, light sweeps, HUD glitches, decoding names, animated dog emotes and cleaner wording.\n\n' +
-      'Update all 7 alerts now? Your dog photos, names, sounds and settings are kept. Custom layer edits are replaced (Ctrl+Z undoes it).');
+    const yes = confirm('New standard alert: your typing dog video (green screen removed), with each alert\'s words typed into its speech bubble.\n\n' +
+      'Switch all ' + RT.ALERT_TYPES.length + ' alerts to it now? The Star Citizen HUD and cartoon designs stay available under Alert settings -> Template. Ctrl+Z undoes it.');
     P.templateVersion = TEMPLATE_VERSION;
     scheduleSave();
     if (!yes) return;
     for (const a of RT.ALERT_TYPES) {
       const old = P.alerts[a.id];
       const fresh = makeTemplate(RT, a.id);
-      if (old) { fresh.enabled = old.enabled; fresh.sound = old.sound; fresh.offset = old.offset; }
+      if (old) { fresh.enabled = old.enabled; if (old.sound && old.sound.asset) fresh.sound = old.sound; fresh.offset = old.offset; }
       P.alerts[a.id] = fresh;
     }
     S.sel = null;
