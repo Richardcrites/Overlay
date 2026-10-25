@@ -51,7 +51,13 @@ A small After Effects-style editor for building **animated Twitch alerts** that 
 
 Your work saves automatically in the browser. Use **Save** to download a backup `.json`, and **Open** to load one.
 
-## Way 1: StreamElements (easiest)
+## Recommended: Streamer.bot
+
+Streamer.bot is the simplest setup now. It sees every follow, sub, gift, cheer (including repeats), raid and
+channel point redeem, and the overlay file is just a local OBS source, so a big video doesn't matter.
+See **Way 1b: Streamer.bot** below. StreamElements still works if you ever need it.
+
+## Way 1: StreamElements
 
 StreamElements is already connected to your Twitch, so **follows, subs, resubs, gift subs, cheers and raids** all work.
 You don't need tokens or a channel name.

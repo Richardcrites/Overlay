@@ -1309,7 +1309,7 @@
     if (s.token) { $('#followDetails').open = true; validateToken(); }
     $('#copyStatus').textContent = '';
     $('#exPages').value = s.pagesUrl || (/^https?:/.test(location.protocol) && !/localhost|127\.0\.0\.1/.test(location.host) ? location.origin + location.pathname.replace(/[^/]*$/, '') : '');
-    showExportTab(s.lastExport || (s.token ? 'obs' : 'se'));
+    showExportTab(s.lastExport === 'obs' ? 'obs' : 'sb');
     dlg.showModal();
   }
   function readExportForm() {
