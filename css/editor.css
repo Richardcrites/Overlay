@@ -197,3 +197,7 @@ dialog a { color: var(--accent); }
   #workspace { grid-template-columns: 220px 1fr 270px; }
   :root { --name-col: 160px; }
 }
+
+.sblog { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 6px 8px; max-height: 160px; overflow: auto; font-family: 'Share Tech Mono', monospace; }
+.sblog .bad { color: #ff8a8a; }
+.sblog .good { color: #5cffb0; }

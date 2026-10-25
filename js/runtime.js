@@ -1890,29 +1890,53 @@ function OverlayRuntime() {
     }
 
     function connect() {
-      let ws;
+      let ws, subscribed = false, helloTimer = null;
       try { ws = new WebSocket(url); } catch (e) { retry(); return; }
+      if (opts.onSocket) opts.onSocket(ws);
+      const send = (o) => { try { ws.send(JSON.stringify(o)); } catch (e) { /* closed */ } };
+      function subscribe() {
+        if (subscribed) return;
+        subscribed = true;
+        send({ request: 'Subscribe', id: 'qp-sub', events: { Twitch: events } });
+        if (!opts.cheersOnly) {
+          for (const [src, type] of TIP_SOURCES) send({ request: 'Subscribe', id: 'qp-tip-' + src, events: { [src]: [type] } });
+        }
+      }
+      ws.onopen = () => {
+        backoff = 2000;
+        warned = false;
+        log('Reached Streamer.bot at ' + url + ', logging in...');
+        // Older Streamer.bot versions never say Hello: subscribe anyway.
+        helloTimer = setTimeout(subscribe, 2500);
+      };
       ws.onmessage = async (e) => {
         let m;
         try { m = JSON.parse(e.data); } catch (err) { return; }
         if (m.request === 'Hello') {
-          backoff = 2000;
-          warned = false;
+          clearTimeout(helloTimer);
           if (m.authentication) {
-            if (!opts.password) { log('Streamer.bot wants a password: add it in the export window, or turn off authentication', true); return; }
-            ws.send(JSON.stringify({ request: 'Authenticate', id: 'qp-auth', authentication: await sbAuth(opts.password, m.authentication.salt, m.authentication.challenge) }));
-          }
-          ws.send(JSON.stringify({ request: 'Subscribe', id: 'qp-sub', events: { Twitch: events } }));
-          if (!opts.cheersOnly) {
-            for (const [src, type] of TIP_SOURCES) ws.send(JSON.stringify({ request: 'Subscribe', id: 'qp-tip-' + src, events: { [src]: [type] } }));
+            if (!opts.password) { log('Streamer.bot has authentication turned on: enter its password in the export window (Streamer.bot connection settings) and download again, or turn authentication off in Streamer.bot', true, true); return; }
+            // subscribe once the password is accepted
+            send({ request: 'Authenticate', id: 'qp-auth', authentication: await sbAuth(opts.password, m.authentication.salt, m.authentication.challenge) });
+          } else subscribe();
+          return;
+        }
+        if (m.id === 'qp-auth') {
+          if (m.status === 'ok') subscribe();
+          else log('Streamer.bot rejected the password: check it in the export window and download again', true, true);
+          return;
+        }
+        if (m.id === 'qp-sub') {
+          if (m.status === 'ok') log(opts.cheersOnly ? 'Streamer.bot connected (cheers)' : 'Connected to Streamer.bot');
+          else {
+            // one event name this Streamer.bot doesn't know rejects the whole list: subscribe one by one
+            log('Streamer.bot: ' + (m.error || 'could not subscribe to events') + '. Retrying one event at a time', true);
+            events.forEach((ev) => send({ request: 'Subscribe', id: 'qp-sub1-' + ev, events: { Twitch: [ev] } }));
           }
           return;
         }
-        if (m.id === 'qp-auth' && m.status !== 'ok') log('Streamer.bot rejected the password', true);
-        if (m.id === 'qp-sub') {
-          if (m.status === 'ok') log(opts.cheersOnly ? 'Streamer.bot connected (cheers)' : 'Connected to Streamer.bot');
-          else log('Streamer.bot: ' + (m.error || 'could not subscribe to events'), true);
-        }
+        if (m.id && /^qp-sub1-/.test(m.id) && m.status !== 'ok') log('Streamer.bot does not know the ' + m.id.slice(8) + ' event', true);
+        if (m.event && m.data && opts.onRaw) opts.onRaw(m.event);
         if (m.event && m.data && (!m.event.source || m.event.source === 'Twitch')) handle(m.event.type, m.data);
         else if (m.event && m.data && !opts.cheersOnly && TIP_SOURCES.some(([src, type]) => src === m.event.source && type === m.event.type)) {
           const d = m.data;
@@ -1921,15 +1945,22 @@ function OverlayRuntime() {
         }
       };
       ws.onclose = () => {
-        if (!warned) { log('Waiting for Streamer.bot at ' + url + ' (is its WebSocket server started?)', true); warned = true; }
+        clearTimeout(helloTimer);
+        if (stopped) return;
+        if (!warned) { log('Can\'t reach Streamer.bot at ' + url + '. Is Streamer.bot open, with its WebSocket server started on port ' + (opts.port || 8080) + '?', true, true); warned = true; }
         retry();
       };
     }
+    let stopped = false, current = null;
+    const prevOnSocket = opts.onSocket;
+    opts.onSocket = (ws) => { current = ws; if (prevOnSocket) prevOnSocket(ws); };
     function retry() {
+      if (stopped) return;
       setTimeout(connect, backoff);
       backoff = Math.min(backoff * 1.5, 15000);
     }
     connect();
+    return { stop() { stopped = true; if (current) current.close(); } };
   }
 
   // ---------------------------------------------------------------- StreamElements custom widget events
@@ -2108,14 +2139,15 @@ function OverlayRuntime() {
     const ctx = canvas.getContext('2d');
     const status = document.getElementById('status');
     let statusTimer = null;
-    function log(text, isError) {
+    // sticky: a problem that stops alerts stays on screen until it's fixed
+    function log(text, isError, sticky) {
       if (window.console) console[isError ? 'warn' : 'log']('[QuantumPaws] ' + text);
       if (!status || config.hideStatus) return;
       status.textContent = text;
       status.style.color = isError ? '#ff8a8a' : '#9fe8ff';
       status.style.opacity = '1';
       clearTimeout(statusTimer);
-      statusTimer = setTimeout(() => { status.style.opacity = '0'; }, isError ? 15000 : 6000);
+      if (!sticky) statusTimer = setTimeout(() => { status.style.opacity = '0'; }, isError ? 15000 : 6000);
     }
 
     const queue = [];
@@ -2192,6 +2224,6 @@ function OverlayRuntime() {
   return {
     EASES, EASE_LABELS, BEZIER_PRESETS, EASY_EASE, FONTS, SCHEMA, TRANSFORM_KEYS, EFFECT_KEYS, ALERT_TYPES, SAMPLE_VARS, SYNTHS, SYNTH_LABELS,
     uid, makeLayer, fieldDef, evalProp, keyedValue, evalLayer, substitute, render, layerBounds, layerActive, cubicBezier,
-    alertMatrix, worldMatrix, layerIndex, applyAlertTransform, MASCOT_LOOP, loadVideos, stopVideos, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
+    alertMatrix, worldMatrix, layerIndex, StreamerbotEvents, applyAlertTransform, MASCOT_LOOP, loadVideos, stopVideos, isAnimatedData, imageHasAlpha, playSound, getAudio, loadImages, usedFonts, parseIrc, startOverlay, pawPath,
   };
 }

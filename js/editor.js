@@ -1394,6 +1394,38 @@
     download('quantum-paws-streamerbot.html', html, 'text/html');
     toast('Overlay downloaded (' + Math.round(html.length / 1024) + ' KB). Add it to OBS as a Browser source (Local file).', 5000);
   });
+  // Connect to Streamer.bot from the editor and report each step, to find out why alerts don't arrive.
+  let sbTest = null, sbTestTimer = null;
+  function stopSbTest() {
+    if (sbTest) sbTest.stop();
+    sbTest = null; clearTimeout(sbTestTimer);
+    $('#btnTestSb').textContent = 'Test connection';
+  }
+  $('#btnTestSb').addEventListener('click', () => {
+    if (sbTest) { stopSbTest(); return; }
+    readExportForm();
+    const s = P.settings, box = $('#sbTestLog');
+    box.hidden = false; box.textContent = '';
+    const line = (text, cls) => {
+      const d = el('div', { className: cls || '' }, text);
+      box.appendChild(d); box.scrollTop = box.scrollHeight;
+    };
+    let gotEvent = false;
+    line('Connecting to ws://' + (s.sbHost || '127.0.0.1') + ':' + (s.sbPort || 8080) + '/ ...');
+    sbTest = RT.StreamerbotEvents((ev) => line('\u2714 Alert would play: ' + ev.type + ' from ' + ev.user, 'good'), {
+      host: s.sbHost || '127.0.0.1', port: s.sbPort || 8080, password: s.sbPassword || '', chatTest: true,
+      onTest: (type) => line('\u2714 !testalert ' + type + ' recognized: those alerts would play', 'good'),
+      onRaw: (ev) => { gotEvent = true; line('Event from Streamer.bot: ' + ev.source + ' ' + ev.type); },
+      log: (text, isError) => line((isError ? '\u2716 ' : '') + text, isError ? 'bad' : (/^Connected/.test(text) ? 'good' : '')),
+    });
+    $('#btnTestSb').textContent = 'Stop test';
+    sbTestTimer = setTimeout(() => {
+      if (!gotEvent) line('No events arrived in 2 minutes. If it said Connected, check Platforms \u2192 Twitch in Streamer.bot: the Broadcaster account must be connected.', 'bad');
+      stopSbTest();
+    }, 120000);
+  });
+  dlg.addEventListener('close', stopSbTest);
+
   function showExportTab(which) {
     if (P) { P.settings.lastExport = which; scheduleSave(); }
     for (const b of document.querySelectorAll('[data-ex]')) b.classList.toggle('active', b.dataset.ex === which);
