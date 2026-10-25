@@ -166,7 +166,7 @@ and no motion blur. Everything else, including decoding text, sweeps, glitches a
 ## Standard alert: the typing dog video
 
 Every alert type starts from your **typing dog video**: the cartoon dog in the red headband, with the green screen
-keyed out and the computer faded away softly. He types, then winks and smiles at the camera (5.6 seconds). When its speech bubble pops up, the alert's words type into it, and they follow the
+keyed out, at his computer. He types, then winks and smiles at the camera (5.6 seconds). When its speech bubble pops up, the alert's words type into it, and they follow the
 bubble as it pops in, wiggles and pops out:
 
 | Alert | The dog says |
@@ -180,16 +180,16 @@ bubble as it pops in, wiggles and pops out:
 | Redeem | **{user}** used Bezos Money! *(plus their message)* |
 | Raid | **{user}** is raiding! Let's throw some ass! |
 
-To change the words, click the **Bubble text** layer. He sits in the bottom-left corner; move it with
+To change the words, click the **Bubble text** layer. He sits in the bottom-right corner (the monitor's cut-off edge lines up with the screen edge); move it with
 **Alert settings → Move all X/Y** or **Scale all**. The video's own typing sounds play as the alert sound.
 
 - **Other looks:** pick one under **Alert settings → Template** (*Typing dog video*, *Cartoon doodle dog* or
   *Star Citizen HUD*), then click **Use template**.
 - **Your own videos:** use **+ Video** in the media library, add a **Video** layer and pick the clip. If it has a green
   background, tick **Green screen key** and adjust **Key tolerance** until the green is gone.
-- **The file:** `video/typing-dog-faded.webm` already has the green removed (transparent background, with sound).
-  Other cuts: `video/typing-dog.webm` is the full 10-second clip with the computer, and `video/dog-bust.webm` is just
-  him from the chest up. The
+- **The file:** `video/typing-dog-trimmed.webm` already has the green removed (transparent background, with sound).
+  Other cuts: `video/typing-dog.webm` is the full 10-second clip, `video/typing-dog-faded.webm` fades the computer
+  out, and `video/dog-bust.webm` is just him from the chest up. The
   editor loads it automatically when you open it from its web address (GitHub Pages). On a double-clicked copy,
   add it once with **+ Video**.
 - **StreamElements:** the video makes the alert code about 2 MB, too big to paste. Use **Code won't save?**, the tiny
