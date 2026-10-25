@@ -95,6 +95,8 @@
       p.soundsDone = Object.keys(DEFAULT_SOUND);
       delete p.soundsAdded;
     }
+    // One time: turn the Redeem alert off (it can be ticked back on under Alert settings).
+    if (!p.redeemOff) { if (p.alerts.redeem) p.alerts.redeem.enabled = false; p.redeemOff = true; }
     p.width = W; p.height = H;
     return p;
   }

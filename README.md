@@ -201,7 +201,7 @@ Your StreamElements sound bites are in `sounds/` and already set on each alert (
 | `donation.mp3` | Donation |
 | `raid.mp3` | Raid |
 
-Redeem has no sound bite. The video's own typing sounds play on top. To hear only the sound bite,
+Redeem (off by default) has no sound bite. The video's own typing sounds play on top. To hear only the sound bite,
 click the dog video layer and set **Video sound volume** to 0.
 
 ### Donation alert
@@ -223,7 +223,7 @@ connected under **Integrations** in Streamer.bot. The bubble shows *{user} donat
 
 ## Redeem alert and the cartoon dog
 
-The **Redeem** alert is for channel point rewards. A hand-drawn cartoon of your dog pops up in the bottom-left corner
+The **Redeem** alert is for channel point rewards. It's **off** by default because another tool (like Tangia) already announces redeems; tick **Alert settings → Enabled** on the Redeem tab to use it. A hand-drawn cartoon of your dog pops up in the bottom-left corner
 and "says" it in a speech bubble: **so_hey** used **Bezos Money!**. A smaller bubble underneath shows the viewer's
 message, only when they typed one. The bubble outlines wobble a few times a second, like a hand-drawn GIF.
 

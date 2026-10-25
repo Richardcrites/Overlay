@@ -266,8 +266,10 @@ function buildTemplate(RT, type, style) {
 function makeProject(RT) {
   const alerts = {};
   for (const a of RT.ALERT_TYPES) alerts[a.id] = makeTemplate(RT, a.id);
+  alerts.redeem.enabled = false; // reward redemptions are announced elsewhere; tick Enabled to use it
   return {
     version: 1,
+    redeemOff: true,
     templateVersion: TEMPLATE_VERSION,
     soundsDone: Object.keys(DEFAULT_SOUND),
     width: 1920,
