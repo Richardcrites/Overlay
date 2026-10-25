@@ -199,8 +199,9 @@ Your StreamElements sound bites are in `sounds/` and already set on each alert (
 | `sub.ogg` | Sub, Resub, Gift Sub, Gift Bomb |
 | `bits.mp3` | Cheer |
 | `donation.mp3` | Donation |
+| `raid.mp3` | Raid |
 
-Raid and Redeem have no sound bite. The video's own typing sounds play on top. To hear only the sound bite,
+Redeem has no sound bite. The video's own typing sounds play on top. To hear only the sound bite,
 click the dog video layer and set **Video sound volume** to 0.
 
 ### Donation alert
@@ -269,7 +270,7 @@ css/editor.css    editor styles
 js/runtime.js     animation engine, sounds, and Twitch connections (also embedded in exported overlays)
 js/templates.js   the built-in Star Citizen / dog templates
 js/editor.js      editor UI: timeline, keyframes, inspector, export
-sounds/           alert sound bites (follower, sub, bits, donation)
+sounds/           alert sound bites (follower, sub, bits, donation, raid)
 video/            the typing dog video cuts
 perfect-landing/  the Perfect Landing Stream Deck alert (index.html + ironclad.webp)
 ```

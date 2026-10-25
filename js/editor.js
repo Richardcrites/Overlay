@@ -88,10 +88,12 @@
       for (const l of al.layers) { l.keys = l.keys || {}; l.props = Object.assign(RT.makeLayer(l.type).props, l.props); }
     }
     p.settings = Object.assign({}, base.settings, p.settings || {});
-    // One time: give existing alerts the sound bites (only where no sound file was picked yet).
-    if (!p.soundsAdded) {
-      for (const type in DEFAULT_SOUND) if (p.alerts[type] && !p.alerts[type].sound.asset) p.alerts[type].sound.asset = DEFAULT_SOUND[type];
-      p.soundsAdded = true;
+    // Once per sound: give existing alerts their sound bite (only where no sound file was picked yet).
+    const done = p.soundsDone || (p.soundsAdded ? ['follow', 'sub', 'resub', 'giftsub', 'giftbomb', 'cheer', 'tip'] : []);
+    if (Object.keys(DEFAULT_SOUND).some((t) => !done.includes(t))) {
+      for (const type in DEFAULT_SOUND) if (!done.includes(type) && p.alerts[type] && !p.alerts[type].sound.asset) p.alerts[type].sound.asset = DEFAULT_SOUND[type];
+      p.soundsDone = Object.keys(DEFAULT_SOUND);
+      delete p.soundsAdded;
     }
     p.width = W; p.height = H;
     return p;

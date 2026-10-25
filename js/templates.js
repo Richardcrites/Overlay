@@ -29,7 +29,7 @@ const BUBBLE_TEXT = {
 };
 const HAS_MESSAGE = { resub: true, cheer: true, tip: true, redeem: true };
 // The sound bites each alert plays (from the user's old StreamElements alerts), in sounds/.
-const DEFAULT_SOUND = { follow: 'snd_follower', sub: 'snd_sub', resub: 'snd_sub', giftsub: 'snd_sub', giftbomb: 'snd_sub', cheer: 'snd_bits', tip: 'snd_donation' };
+const DEFAULT_SOUND = { follow: 'snd_follower', sub: 'snd_sub', resub: 'snd_sub', giftsub: 'snd_sub', giftbomb: 'snd_sub', cheer: 'snd_bits', tip: 'snd_donation', raid: 'snd_raid' };
 const TEMPLATE_STYLES = [['video', 'Typing dog video (standard)'], ['doodle', 'Cartoon doodle dog'], ['hud', 'Star Citizen HUD']];
 
 function layerMaker(RT) {
@@ -269,7 +269,7 @@ function makeProject(RT) {
   return {
     version: 1,
     templateVersion: TEMPLATE_VERSION,
-    soundsAdded: true,
+    soundsDone: Object.keys(DEFAULT_SOUND),
     width: 1920,
     height: 1080,
     assets: {
@@ -281,6 +281,7 @@ function makeProject(RT) {
       snd_sub: { type: 'sound', name: 'Sub', data: null, builtin: 'sounds/sub.ogg' },
       snd_bits: { type: 'sound', name: 'Bits', data: null, builtin: 'sounds/bits.mp3' },
       snd_donation: { type: 'sound', name: 'Donation', data: null, builtin: 'sounds/donation.mp3' },
+      snd_raid: { type: 'sound', name: 'Raid', data: null, builtin: 'sounds/raid.mp3' },
     },
     alerts,
     settings: { channel: '', token: '', clientId: '', volume: 0.8, gap: 1, testOnLoad: false, chatTest: true },
