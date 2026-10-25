@@ -95,6 +95,13 @@
       p.soundsDone = Object.keys(DEFAULT_SOUND);
       delete p.soundsAdded;
     }
+    // One time: Cheer becomes the coin rain video (keeps its sound and on/off).
+    if (!p.cheerCoins) {
+      const old = p.alerts.cheer, fresh = base.alerts.cheer;
+      if (old) { fresh.enabled = old.enabled; if (old.sound && old.sound.asset) fresh.sound = old.sound; }
+      p.alerts.cheer = fresh;
+      p.cheerCoins = true;
+    }
     // One time: turn the Redeem alert off (it can be ticked back on under Alert settings).
     if (!p.redeemOff) { if (p.alerts.redeem) p.alerts.redeem.enabled = false; p.redeemOff = true; }
     p.width = W; p.height = H;

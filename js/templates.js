@@ -132,6 +132,40 @@ function makeVideoTemplate(RT, type) {
   return { enabled: true, duration: D, offset: { x: 0, y: 0, scale: 1 }, sound: { synth: 'none', asset: null, volume: 1, delay: 0 }, layers, style: 'video' };
 }
 
+// video/coin-dog.webm (Cheer): the dog at his desk as coins rain down; he looks up, grins and winks. 6 s.
+// It has no speech bubble of its own, so a clean white one pops up beside his head.
+const COIN_DOG = { asset: 'vid_coins', w: 1280, h: 720, duration: 6 };
+function makeCoinTemplate(RT, type) {
+  const V = COIN_DOG, D = V.duration, k = kf, L = layerMaker(RT), INK = '#15100c';
+  const pop = (t0, t1) => [k(t0, 0, 'backOut'), k(t0 + 0.3, 1, 'linear'), k(t1 - 0.25, 1, 'backIn'), k(t1, 0)];
+  // Bottom-left corner: the monitor is cut off at the left of the source video, so that edge sits on the screen edge.
+  const vid = L('video', 'Dog video', 0, D, { asset: V.asset, x: V.w * 0.4, y: 1080 - V.h * 0.4, width: V.w, height: V.h, scale: 0.8 }, {
+    opacity: [k(0, 0, 'linear'), k(0.2, 1, 'linear'), k(D - 0.35, 1, 'linear'), k(D, 0)],
+  });
+  // In the video's own pixels, centred on it (parented): up and to the right of his head.
+  const bubble = L('shape', 'Speech bubble', 0.45, D - 0.45, {
+    kind: 'bubble', tail: 'left', x: 330, y: -235, width: 470, height: 132, fill: '#ffffff', fillAlpha: 1, stroke: INK, strokeWidth: 4, wobble: 0.3,
+  }, { scale: pop(0.45, D - 0.45) });
+  const words = L('text', 'Bubble text', 0.45, D - 0.45, {
+    text: BUBBLE_TEXT[type], font: 'Patrick Hand', size: 42, weight: '400', color: INK, x: 330, y: -235, align: 'center',
+    wrap: 420, fit: 420, fitHeight: 104,
+  }, { reveal: [k(0.65, 0, 'linear'), k(1.55, 1)], scale: pop(0.45, D - 0.45) });
+  bubble.parent = vid.id;
+  words.parent = vid.id;
+  const layers = [];
+  if (HAS_MESSAGE[type]) {
+    layers.push(L('text', 'Message', 1.2, D - 0.5, {
+      text: '{message}', font: 'Patrick Hand', size: 30, weight: '400', color: INK, x: 790, y: 492, align: 'center', fit: 420, onlyIf: 'message',
+      animator: 'fadeUp', stagger: 0.03,
+    }, { progress: [k(1.3, 0, 'linear'), k(2.2, 1)], scale: pop(1.2, D - 0.5) }));
+    layers.push(L('shape', 'Message bubble', 1.2, D - 0.5, {
+      kind: 'bubble', tail: 'none', x: 790, y: 492, width: 460, height: 56, fill: '#ffffff', fillAlpha: 1, stroke: INK, strokeWidth: 4, wobble: 0.3, onlyIf: 'message',
+    }, { scale: pop(1.2, D - 0.5) }));
+  }
+  layers.push(words, bubble, vid);
+  return { enabled: true, duration: D, offset: { x: 0, y: 0, scale: 1 }, sound: { synth: 'none', asset: null, volume: 1, delay: 0 }, layers, style: 'video' };
+}
+
 function makeTemplate(RT, type, style) {
   const al = buildTemplate(RT, type, style);
   if (DEFAULT_SOUND[type]) al.sound.asset = DEFAULT_SOUND[type];
@@ -140,7 +174,7 @@ function makeTemplate(RT, type, style) {
 
 function buildTemplate(RT, type, style) {
   style = style || 'video';
-  if (style === 'video') return makeVideoTemplate(RT, type);
+  if (style === 'video') return type === 'cheer' ? makeCoinTemplate(RT, type) : makeVideoTemplate(RT, type);
   if (style === 'doodle' || !THEMES[type]) return makeDoodleTemplate(RT, type);
   const th = THEMES[type];
   const C = th.color;
@@ -279,6 +313,7 @@ function makeProject(RT) {
   return {
     version: 1,
     redeemOff: true,
+    cheerCoins: true,
     templateVersion: TEMPLATE_VERSION,
     soundsDone: Object.keys(DEFAULT_SOUND),
     width: 1920,
@@ -288,6 +323,7 @@ function makeProject(RT) {
       dog2: { type: 'image', name: 'Dog 2', data: null, crew: true },
       dog3: { type: 'image', name: 'Dog 3', data: null, crew: true },
       vid_typingtrim: { type: 'video', name: 'Typing dog', data: null, builtin: 'video/typing-dog-trimmed.webm' },
+      vid_coins: { type: 'video', name: 'Coin rain dog', data: null, builtin: 'video/coin-dog.webm' },
       vid_prime: { type: 'video', name: "Bezo's Bucks dog", data: null, builtin: 'video/prime-dog.webm' },
       snd_follower: { type: 'sound', name: 'Follower', data: null, builtin: 'sounds/follower.mp3' },
       snd_sub: { type: 'sound', name: 'Sub', data: null, builtin: 'sounds/sub.ogg' },
