@@ -20,6 +20,7 @@ const BUBBLE_TEXT = {
   follow: '[c=' + PINK + ']{user}[/c] just followed!',
   sub: '[c=' + PINK + ']{user}[/c] subscribed! Welcome to the Big Dogs!',
   resub: '[c=' + PINK + ']{user}[/c] resubbed for {months} {months:month|months}!',
+  primesub: '[c=' + PINK + ']{user}[/c] subbed with Bezo\'s Bucks!',
   giftsub: '[c=' + PINK + ']{user}[/c] gifted a sub to {recipient}!',
   giftbomb: '[c=' + PINK + ']{user}[/c] gifted {count} {count:sub|subs}!',
   cheer: '[c=' + PINK + ']{user}[/c] cheered {bits} {bits:bit|bits}!',
@@ -27,9 +28,9 @@ const BUBBLE_TEXT = {
   redeem: '[c=' + PINK + ']{user}[/c] used {reward}!',
   raid: '[c=' + PINK + ']{user}[/c] is raiding! Let\'s throw some ass!',
 };
-const HAS_MESSAGE = { resub: true, cheer: true, tip: true, redeem: true };
+const HAS_MESSAGE = { resub: true, primesub: true, cheer: true, tip: true, redeem: true };
 // The sound bites each alert plays (from the user's old StreamElements alerts), in sounds/.
-const DEFAULT_SOUND = { follow: 'snd_follower', sub: 'snd_sub', resub: 'snd_sub', giftsub: 'snd_sub', giftbomb: 'snd_sub', cheer: 'snd_bits', tip: 'snd_donation', raid: 'snd_raid' };
+const DEFAULT_SOUND = { follow: 'snd_follower', sub: 'snd_sub', resub: 'snd_sub', primesub: 'snd_sub', giftsub: 'snd_sub', giftbomb: 'snd_sub', cheer: 'snd_bits', tip: 'snd_donation', raid: 'snd_raid' };
 const TEMPLATE_STYLES = [['video', 'Typing dog video (standard)'], ['doodle', 'Cartoon doodle dog'], ['hud', 'Star Citizen HUD']];
 
 function layerMaker(RT) {
@@ -82,18 +83,24 @@ const TYPING_DOG_BUBBLE = [[23, 296.5, 171.5, 183, 55], [24, 266.5, 143.5, 297, 
 // video/typing-dog-trimmed.webm: the whole typing dog scene (computer included), trimmed so he finishes typing
 // (0-3.6 s of the original), then crossfades to the wink and smile (4.9-7.15 s). 5.6 s long.
 // The bubble is in the first part, so its positions are unchanged.
-const TYPING_DOG = { asset: 'vid_typingtrim', fps: 24, w: 1280, h: 720, bubbleW: 392, bubbleH: 116, duration: 5.6 };
+const TYPING_DOG = { asset: 'vid_typingtrim', fps: 24, w: 1280, h: 720, bubbleW: 392, bubbleH: 116, duration: 5.6, track: TYPING_DOG_BUBBLE, cursor: true };
+
+// video/prime-dog.webm ("Bezo's Bucks", Prime subs): the dog in a bald cap and headband, typing (0-3.2 s of the
+// original), then crossfading to him looking at the camera (4.2-6.9 s). 5.6 s long. Its bubble is empty (no cursor).
+const PRIME_DOG_BUBBLE = [[25, 297.0, 186.5, 115, 32], [26, 277.5, 162.5, 214, 62], [27, 261.0, 142.5, 299, 88], [28, 250.0, 128.5, 355, 106], [29, 243.0, 122.0, 385, 115], [30, 239.0, 118.0, 401, 119], [31, 236.5, 115.5, 410, 122], [32, 236.0, 115.0, 413, 123], [33, 236.5, 115.0, 412, 123], [34, 237.5, 116.5, 408, 122], [35, 238.5, 117.5, 404, 120], [36, 239.5, 118.0, 400, 119], [37, 240.5, 119.5, 396, 118], [38, 241.0, 120.0, 393, 117], [39, 241.0, 120.0, 393, 117], [40, 241.0, 120.0, 393, 117], [41, 241.0, 120.0, 393, 117], [42, 241.0, 120.0, 393, 117], [43, 241.0, 120.0, 393, 117], [44, 241.0, 120.0, 393, 117], [45, 241.0, 120.0, 393, 117], [46, 241.0, 120.0, 393, 117], [47, 241.0, 120.0, 393, 117], [48, 241.0, 120.0, 393, 117], [49, 241.0, 120.0, 393, 117], [50, 241.0, 120.0, 393, 117], [51, 241.0, 120.0, 393, 117], [52, 241.0, 120.0, 393, 117], [53, 241.0, 120.0, 393, 117], [54, 240.0, 119.0, 399, 119], [55, 238.5, 117.5, 406, 120], [56, 236.5, 116.0, 414, 123], [57, 235.5, 114.5, 420, 124], [58, 235.5, 114.5, 420, 124], [59, 237.0, 117.5, 403, 120], [60, 243.5, 125.0, 356, 105], [61, 252.0, 138.0, 281, 83], [62, 263.0, 153.0, 189, 55], [63, 273.5, 168.0, 96, 27]];
+const PRIME_DOG = { asset: 'vid_prime', fps: 24, w: 1280, h: 720, bubbleW: 392, bubbleH: 116, duration: 5.6, track: PRIME_DOG_BUBBLE, cursor: false, typedBy: 1.85 };
+const VIDEO_FOR = { primesub: PRIME_DOG };
 
 // Standard: the green-screened typing dog video, with the alert's words typed into its speech bubble.
 function makeVideoTemplate(RT, type) {
-  const V = TYPING_DOG, D = V.duration, k = kf, L = layerMaker(RT), INK = '#15100c';
+  const V = VIDEO_FOR[type] || TYPING_DOG, D = V.duration, k = kf, L = layerMaker(RT), INK = '#15100c';
   const layers = [];
   // Bottom-right corner: the monitor is cut off at the right of the source video, so that edge sits on the screen edge.
   const vid = L('video', 'Dog video', 0, D, { asset: V.asset, x: 1920 - V.w * 0.4, y: 1080 - V.h * 0.4, width: V.w, height: V.h, scale: 0.8 }, {
     opacity: [k(0, 0, 'linear'), k(0.2, 1, 'linear'), k(D - 0.35, 1, 'linear'), k(D, 0)],
   });
   // Follow the bubble: position/scale keys from the tracking data, in the video's own pixel space (parented to it).
-  const tr = TYPING_DOG_BUBBLE;
+  const tr = V.track;
   const tFirst = tr[0][0] / V.fps, tLast = tr[tr.length - 1][0] / V.fps;
   const track = (fn) => tr.map((f) => ({ t: Math.round(f[0] / V.fps * 1000) / 1000, v: fn(f), e: 'linear' }));
   const follow = {
@@ -107,7 +114,7 @@ function makeVideoTemplate(RT, type) {
   const words = L('text', 'Bubble text', 0, D, {
     text: BUBBLE_TEXT[type], font: 'Patrick Hand', size: 40, weight: '400', color: INK, align: 'left', anchorX: V.bubbleW / 2 - 24,
     wrap: V.bubbleW - 48, fit: V.bubbleW - 48, fitHeight: V.bubbleH - 22,
-  }, Object.assign({ reveal: [k(tFirst + 0.15, 0, 'linear'), k(Math.min(tLast - 0.6, tFirst + 1.1), 1)] }, follow));
+  }, Object.assign({ reveal: [k(tFirst + 0.15, 0, 'linear'), k(V.typedBy || Math.min(tLast - 0.6, tFirst + 1.1), 1)] }, follow));
   cover.parent = vid.id;
   words.parent = vid.id;
   if (HAS_MESSAGE[type]) {
@@ -119,7 +126,9 @@ function makeVideoTemplate(RT, type) {
       kind: 'bubble', tail: 'none', x: 1131, y: 505, width: 460, height: 56, fill: '#ffffff', fillAlpha: 1, stroke: INK, strokeWidth: 4, wobble: 1, onlyIf: 'message',
     }, { scale: [k(1.2, 0, 'backOut'), k(1.5, 1, 'linear'), k(D - 0.75, 1, 'backIn'), k(D - 0.5, 0)] }));
   }
-  layers.push(words, cover, vid);
+  layers.push(words);
+  if (V.cursor) layers.push(cover);
+  layers.push(vid);
   return { enabled: true, duration: D, offset: { x: 0, y: 0, scale: 1 }, sound: { synth: 'none', asset: null, volume: 1, delay: 0 }, layers, style: 'video' };
 }
 
@@ -279,6 +288,7 @@ function makeProject(RT) {
       dog2: { type: 'image', name: 'Dog 2', data: null, crew: true },
       dog3: { type: 'image', name: 'Dog 3', data: null, crew: true },
       vid_typingtrim: { type: 'video', name: 'Typing dog', data: null, builtin: 'video/typing-dog-trimmed.webm' },
+      vid_prime: { type: 'video', name: "Bezo's Bucks dog", data: null, builtin: 'video/prime-dog.webm' },
       snd_follower: { type: 'sound', name: 'Follower', data: null, builtin: 'sounds/follower.mp3' },
       snd_sub: { type: 'sound', name: 'Sub', data: null, builtin: 'sounds/sub.ogg' },
       snd_bits: { type: 'sound', name: 'Bits', data: null, builtin: 'sounds/bits.mp3' },

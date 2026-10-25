@@ -189,6 +189,7 @@ function OverlayRuntime() {
     { id: 'follow', label: 'Follow', vars: ['user'] },
     { id: 'sub', label: 'Sub', vars: ['user', 'tier'] },
     { id: 'resub', label: 'Resub', vars: ['user', 'months', 'tier', 'message'] },
+    { id: 'primesub', label: "Bezo's Bucks", vars: ['user', 'months', 'tier', 'message'] }, // Prime subs and resubs
     { id: 'giftsub', label: 'Gift Sub', vars: ['user', 'recipient', 'tier'] },
     { id: 'giftbomb', label: 'Gift Bomb', vars: ['user', 'count', 'tier'] },
     { id: 'cheer', label: 'Cheer', vars: ['user', 'bits', 'message'] },
@@ -200,6 +201,7 @@ function OverlayRuntime() {
     follow: { user: 'StarRunner_42' },
     sub: { user: 'OrgCommander', tier: 'Tier 1' },
     resub: { user: 'Vanduul_Hunter', months: '14', tier: 'Tier 1', message: 'o7 Best crew in the verse, give the pups a treat!' },
+    primesub: { user: 'PrimeTimePilot', months: '1', tier: 'Prime', message: '' },
     giftsub: { user: 'Hull_C_Hauler', recipient: 'NewPilot99', tier: 'Tier 1' },
     giftbomb: { user: 'Idris_Captain', count: '10', tier: 'Tier 1' },
     cheer: { user: 'aUEC_Baron', bits: '500', message: 'Fuel for the Carrack! Good boys!' },
@@ -1857,10 +1859,10 @@ function OverlayRuntime() {
         const bits = (d.message && typeof d.message === 'object' && d.message.bits) || d.bits || d.amount;
         onEvent({ type: 'cheer', user, login: sbLogin(d), bits: String(parseInt(bits, 10) || 0), message: sbText(d).replace(/\b[A-Za-z]+\d+\b/g, '').replace(/\s+/g, ' ').trim() });
       } else if (type === 'Follow') onEvent({ type: 'follow', user });
-      else if (type === 'Sub') onEvent({ type: 'sub', user, tier: tierName(d.isPrime ? 'prime' : d.subTier || d.tier || d.sub_tier) });
+      else if (type === 'Sub') onEvent({ type: 'sub', user, tier: tierName(d.isPrime || d.is_prime ? 'prime' : d.subTier || d.tier || d.sub_tier) });
       else if (type === 'ReSub') {
         onEvent({ type: 'resub', user, months: String(d.cumulativeMonths || d.cumulative_months || d.monthsSubscribed || d.months || 1),
-          tier: tierName(d.isPrime ? 'prime' : d.subTier || d.tier || d.sub_tier), message: sbText(d) });
+          tier: tierName(d.isPrime || d.is_prime ? 'prime' : d.subTier || d.tier || d.sub_tier), message: sbText(d) });
       } else if (type === 'GiftSub') {
         if (d.fromSubBomb || d.fromGiftBomb || d.fromCommunitySubGift) return; // part of a gift bomb
         const r = d.recipient && typeof d.recipient === 'object' ? d.recipient : {};
@@ -2154,12 +2156,17 @@ function OverlayRuntime() {
     let current = null, cooldownUntil = 0;
 
     function enqueue(ev) {
+      // Prime subs and resubs get the Bezo's Bucks alert when it's on.
+      if ((ev.type === 'sub' || ev.type === 'resub') && ev.tier === 'Prime' && project.alerts.primesub && project.alerts.primesub.enabled) {
+        ev = Object.assign({}, ev, { type: 'primesub', months: ev.months || '1', message: ev.message || '' });
+      }
       const alert = project.alerts[ev.type];
       if (!alert || !alert.enabled) return;
       if (queue.length > 50) return;
       queue.push(ev);
     }
     function test(type) {
+      if (type === 'prime' || type === 'bezos') type = 'primesub';
       const types = type === 'all' ? ALERT_TYPES.map((a) => a.id) : [type];
       types.forEach((tp) => SAMPLE_VARS[tp] && enqueue(Object.assign({ type: tp }, SAMPLE_VARS[tp])));
     }

@@ -189,6 +189,12 @@ bubble as it pops in, wiggles and pops out:
 To change the words, click the **Bubble text** layer. He sits in the bottom-right corner (the monitor's cut-off edge lines up with the screen edge); move it with
 **Alert settings → Move all X/Y** or **Scale all**.
 
+### Bezo's Bucks (Prime subs)
+
+Prime subs and Prime resubs play the **Bezo's Bucks** alert instead of Sub/Resub: the dog in a bald cap and headband
+(`video/prime-dog.webm`), typing *{user} subbed with Bezo's Bucks!* (plus their resub message). It plays the Sub sound.
+Untick **Enabled** on its tab and Prime subs go back to the normal Sub/Resub alerts. Test with `!testalert prime`.
+
 ### Alert sounds
 
 Your StreamElements sound bites are in `sounds/` and already set on each alert (**Alert settings → Sound file**):
@@ -196,7 +202,7 @@ Your StreamElements sound bites are in `sounds/` and already set on each alert (
 | Sound | Alerts |
 |---|---|
 | `follower.mp3` | Follow |
-| `sub.ogg` | Sub, Resub, Gift Sub, Gift Bomb |
+| `sub.ogg` | Sub, Resub, Bezo's Bucks, Gift Sub, Gift Bomb |
 | `bits.mp3` | Cheer |
 | `donation.mp3` | Donation |
 | `raid.mp3` | Raid |
