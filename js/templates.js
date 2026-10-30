@@ -147,6 +147,9 @@ const RAID_DOG = { asset: 'vid_raid', w: 1280, h: 720, duration: 5, bubble: { x:
 // video/prime-cap-dog.webm (Bezo's Bucks): the desk dog grins, pulls a bald cap on over his headband and shows it off
 // (colour-matched to the master). 6 s.
 const PRIME_CAP_DOG = { asset: 'vid_primecap', w: 1280, h: 720, duration: 6, bubble: { x: 450, y: -250, w: 440 } };
+// video/gift-dog.webm (Gift Bomb): wrapped gift boxes pop up all over the desk while he looks around excited
+// (its green box recoloured purple so the green-screen key keeps it, colour-matched to the master). 6 s.
+const GIFT_DOG = { asset: 'vid_gifts', w: 1280, h: 720, duration: 6, bubble: { x: 420, y: -250, w: 440 } };
 function makeDeskTemplate(RT, type, V) {
   const D = V.duration, k = kf, L = layerMaker(RT), INK = '#15100c', B = V.bubble;
   const pop = (t0, t1) => [k(t0, 0, 'backOut'), k(t0 + 0.3, 1, 'linear'), k(t1 - 0.25, 1, 'backIn'), k(t1, 0)];
@@ -207,6 +210,7 @@ function buildTemplate(RT, type, style) {
     if (type === 'cheer') return makeDeskTemplate(RT, type, COIN_DOG);
     if (type === 'primesub') return makeDeskTemplate(RT, type, PRIME_CAP_DOG);
     if (type === 'raid') return makeDeskTemplate(RT, type, RAID_DOG);
+    if (type === 'giftbomb') return makeDeskTemplate(RT, type, GIFT_DOG);
     return makeDeskTemplate(RT, type, DESK_DOG);
   }
   if (style === 'typing') return Object.assign(makeVideoTemplate(RT, type), { style: 'typing' });
@@ -352,6 +356,7 @@ function makeProject(RT) {
     deskDog: true,
     raidSign: true,
     primeCap: true,
+    giftBoxes: true,
     templateVersion: TEMPLATE_VERSION,
     soundsDone: Object.keys(DEFAULT_SOUND),
     width: 1920,
@@ -364,6 +369,7 @@ function makeProject(RT) {
       vid_desk: { type: 'video', name: 'Desk dog (master)', data: null, builtin: 'video/desk-dog.webm' },
       vid_raid: { type: 'video', name: 'Raid sign dog', data: null, builtin: 'video/raid-dog.webm' },
       vid_primecap: { type: 'video', name: 'Bald cap dog (Prime)', data: null, builtin: 'video/prime-cap-dog.webm' },
+      vid_gifts: { type: 'video', name: 'Gift boxes dog', data: null, builtin: 'video/gift-dog.webm' },
       vid_coins: { type: 'video', name: 'Coin rain dog', data: null, builtin: 'video/coin-dog.webm' },
       vid_prime: { type: 'video', name: "Bezo's Bucks dog", data: null, builtin: 'video/prime-dog.webm' },
       snd_follower: { type: 'sound', name: 'Follower', data: null, builtin: 'sounds/follower.mp3' },
