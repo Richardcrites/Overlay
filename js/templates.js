@@ -144,6 +144,9 @@ const COIN_DOG = { asset: 'vid_coins', w: 1280, h: 720, duration: 6, bubble: { x
 // master). 5 s. Where the sign is in each frame while it's up: [frame (24 fps), centre x, centre y, width, angle].
 const RAID_SIGN = [[19, 497.5, 506.4, 309.5, -0.97], [21, 500.5, 492.4, 306.2, 0.3], [23, 500.0, 496.0, 306.0, 0.0], [25, 500.5, 500.5, 307.0, 0.0], [27, 500.5, 503.5, 307.8, -0.34], [29, 500.5, 503.0, 309.0, 0.0], [31, 500.5, 503.5, 309.0, 0.0], [33, 500.5, 503.5, 309.0, 0.0], [35, 500.5, 503.5, 309.0, 0.0], [37, 500.0, 504.0, 308.9, -0.3], [39, 500.0, 504.0, 309.1, -0.26], [41, 500.0, 504.5, 309.2, -0.24], [43, 499.5, 504.5, 310.2, -0.22], [45, 499.5, 504.5, 310.2, -0.23], [47, 499.5, 504.6, 310.2, -0.24], [49, 499.5, 505.1, 310.2, -0.24], [51, 499.5, 505.0, 311.0, 0.0], [53, 499.0, 505.0, 312.0, 0.0], [55, 499.0, 505.0, 312.0, 0.0], [57, 499.0, 505.5, 312.0, 0.0], [59, 498.6, 506.0, 311.9, -0.33], [61, 498.6, 506.0, 312.0, -0.29], [63, 498.6, 506.0, 312.1, -0.28], [65, 498.5, 506.5, 312.2, -0.25], [67, 498.5, 506.5, 312.3, -0.23], [69, 498.1, 506.5, 313.2, -0.23], [71, 498.1, 506.5, 313.3, -0.21]];
 const RAID_DOG = { asset: 'vid_raid', w: 1280, h: 720, duration: 5, bubble: { x: 420, y: -250, w: 440 }, bubbleIn: 3.15, sign: RAID_SIGN, says: 'Let\'s throw some ass!' };
+// video/prime-cap-dog.webm (Bezo's Bucks): the desk dog grins, pulls a bald cap on over his headband and shows it off
+// (colour-matched to the master). 6 s.
+const PRIME_CAP_DOG = { asset: 'vid_primecap', w: 1280, h: 720, duration: 6, bubble: { x: 450, y: -250, w: 440 } };
 function makeDeskTemplate(RT, type, V) {
   const D = V.duration, k = kf, L = layerMaker(RT), INK = '#15100c', B = V.bubble;
   const pop = (t0, t1) => [k(t0, 0, 'backOut'), k(t0 + 0.3, 1, 'linear'), k(t1 - 0.25, 1, 'backIn'), k(t1, 0)];
@@ -202,7 +205,7 @@ function buildTemplate(RT, type, style) {
   style = style || 'video';
   if (style === 'video') {
     if (type === 'cheer') return makeDeskTemplate(RT, type, COIN_DOG);
-    if (type === 'primesub') return makeVideoTemplate(RT, type);
+    if (type === 'primesub') return makeDeskTemplate(RT, type, PRIME_CAP_DOG);
     if (type === 'raid') return makeDeskTemplate(RT, type, RAID_DOG);
     return makeDeskTemplate(RT, type, DESK_DOG);
   }
@@ -348,6 +351,7 @@ function makeProject(RT) {
     cheerCoins: true,
     deskDog: true,
     raidSign: true,
+    primeCap: true,
     templateVersion: TEMPLATE_VERSION,
     soundsDone: Object.keys(DEFAULT_SOUND),
     width: 1920,
@@ -359,6 +363,7 @@ function makeProject(RT) {
       vid_typingtrim: { type: 'video', name: 'Typing dog', data: null, builtin: 'video/typing-dog-trimmed.webm' },
       vid_desk: { type: 'video', name: 'Desk dog (master)', data: null, builtin: 'video/desk-dog.webm' },
       vid_raid: { type: 'video', name: 'Raid sign dog', data: null, builtin: 'video/raid-dog.webm' },
+      vid_primecap: { type: 'video', name: 'Bald cap dog (Prime)', data: null, builtin: 'video/prime-cap-dog.webm' },
       vid_coins: { type: 'video', name: 'Coin rain dog', data: null, builtin: 'video/coin-dog.webm' },
       vid_prime: { type: 'video', name: "Bezo's Bucks dog", data: null, builtin: 'video/prime-dog.webm' },
       snd_follower: { type: 'sound', name: 'Follower', data: null, builtin: 'sounds/follower.mp3' },

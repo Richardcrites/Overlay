@@ -173,8 +173,8 @@ and no motion blur. Everything else, including decoding text, sweeps, glitches a
 
 `video/desk-dog.webm` is the master look: the dog at his desk facing you, grinning and waving a paw, a seamless 6 s
 loop (green screen removed, nothing else changed). Follow, Sub, Resub, Gift Sub, Gift Bomb, Donation and Redeem
-use it, with the words in a white speech bubble beside his head. **Cheer** is the same scene with coins raining down,
-colour-matched to the master, and **Bezo's Bucks** keeps its own bald-cap clip.
+use it, with the words in a white speech bubble beside his head. **Cheer** is the same scene with coins raining down, and
+**Bezo's Bucks** has him putting on a bald cap, both colour-matched to the master.
 
 **Raid** uses `video/raid-dog.webm`: he holds up a sign that reads *WELCOME RAIDERS!*, the raider's name and how many
 pilots they brought (the words follow the sign), then *Let's throw some ass!* pops up in his bubble. To change the
@@ -233,9 +233,11 @@ fixes play in your overlay too (nothing is re-rendered):
 
 ### Bezo's Bucks (Prime subs)
 
-Prime subs and Prime resubs play the **Bezo's Bucks** alert instead of Sub/Resub: the dog in a bald cap and headband
-(`video/prime-dog.webm`), typing *{user} subbed with Bezo's Bucks!* (plus their resub message). It plays the Sub sound.
-Untick **Enabled** on its tab and Prime subs go back to the normal Sub/Resub alerts. Test with `!testalert prime`.
+Prime subs and Prime resubs play the **Bezo's Bucks** alert instead of Sub/Resub: the desk dog grins, pulls a bald cap
+on over his headband and shows it off (`video/prime-cap-dog.webm`, colour-matched to the master), while his bubble
+says *{user} subbed with Bezo's Bucks!* (plus their resub message). It plays the Sub sound. Untick **Enabled** on its
+tab and Prime subs go back to the normal Sub/Resub alerts. Test with `!testalert prime`. The older side-view bald cap
+clip is under **Template → Typing dog (side view)**.
 
 ### Alert sounds
 
